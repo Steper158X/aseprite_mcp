@@ -10,6 +10,7 @@ import { registerDrawTools } from "./tools/draw.ts";
 import { registerFrameTools } from "./tools/frames.ts";
 import { registerInspectTools } from "./tools/inspect.ts";
 import { registerLayerTools } from "./tools/layers.ts";
+import { registerLuaTools } from "./tools/lua.ts";
 import { registerPaletteTools } from "./tools/palette.ts";
 import { registerSpriteTools } from "./tools/sprite.ts";
 import { registerStatusTools } from "./tools/status.ts";
@@ -94,6 +95,9 @@ async function main(): Promise<void> {
   registerFrameTools(mcp, router);
   registerPaletteTools(mcp, router);
   registerInspectTools(mcp, router);
+  if (process.env.ASEPRITE_MCP_ALLOW_LUA === "1") {
+    registerLuaTools(mcp, router);
+  }
 
   const transport = new StdioServerTransport();
   let closing = false;

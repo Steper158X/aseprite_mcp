@@ -658,5 +658,98 @@ return function(util)
     }
   end
 
+  function handlers.get_pixels(params)
+    if not params or type(params.x) ~= "number" or type(params.y) ~= "number"
+       or type(params.width) ~= "number" or type(params.height) ~= "number" then
+      error("x, y, width, and height are required")
+    end
+    local x0 = math.floor(params.x)
+    local y0 = math.floor(params.y)
+    local w = math.floor(params.width)
+    local h = math.floor(params.height)
+    if w < 1 or h < 1 or w > 128 or h > 128 then
+      error("width and height must be between 1 and 128")
+    end
+
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+
+    local frame = util.resolveFrame(sprite, params.frame)
+    if not frame then
+      error("No active frame")
+    end
+
+    local img
+    local useFlattened = true
+    if params.layer ~= nil and params.flattened ~= true then
+      useFlattened = false
+    end
+
+    if useFlattened then
+      img = Image(sprite.spec)
+      img:drawSprite(sprite, frame)
+    else
+      local layer = util.findLayerByName(sprite.layers, tostring(params.layer))
+      if not layer then
+        error("Layer not found: " .. tostring(params.layer))
+      end
+      if layer.isGroup then
+        error("Target layer is a group layer: " .. layer.name)
+      end
+      if layer.isTilemap then
+        error("tilemap layers not supported")
+      end
+      img = util.canvasCopy(sprite, layer, frame)
+    end
+
+    local sw = sprite.width
+    local sh = sprite.height
+    local rows = {}
+    for dy = 0, h - 1 do
+      local py = y0 + dy
+      local row = {}
+      for dx = 0, w - 1 do
+        local px = x0 + dx
+        if px >= 0 and px < sw and py >= 0 and py < sh then
+          table.insert(row, util.pixelToHex(sprite, img:getPixel(px, py)))
+        else
+          table.insert(row, "#00000000")
+        end
+      end
+      table.insert(rows, row)
+    end
+
+    return {
+      x = x0,
+      y = y0,
+      width = w,
+      height = h,
+      frame = frame.frameNumber,
+      flattened = useFlattened,
+      rows = rows,
+    }
+  end
+
+  function handlers.run_lua(params)
+    if not params or type(params.code) ~= "string" or params.code == "" then
+      error("code string is required")
+    end
+    local env = setmetatable({}, { __index = _G })
+    local chunk, loadErr = load(params.code, "mcp", "t", env)
+    if not chunk then
+      error("Lua syntax error: " .. tostring(loadErr))
+    end
+    local res
+    app.transaction("MCP: run_lua", function()
+      res = chunk()
+    end)
+    util.refresh()
+    return {
+      result = res ~= nil and tostring(res) or nil,
+    }
+  end
+
   return handlers
 end

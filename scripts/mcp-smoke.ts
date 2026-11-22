@@ -32,6 +32,7 @@ const EXPECTED_TOOLS = [
   "get_palette",
   "set_palette",
   "get_screenshot",
+  "get_pixels",
 ];
 
 function extractText(result: { content: Array<{ type: string; text?: string }> }): string {

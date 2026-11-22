@@ -250,6 +250,27 @@ function util.copyLayerCelsToFrame(sprite, layers, srcFrameNum, dstFrame)
   end
 end
 
+function util.pixelToHex(sprite, pv)
+  local pc = app.pixelColor
+  if sprite.colorMode == ColorMode.RGB then
+    return string.format("#%02x%02x%02x%02x", pc.rgbaR(pv), pc.rgbaG(pv), pc.rgbaB(pv), pc.rgbaA(pv))
+  elseif sprite.colorMode == ColorMode.GRAY then
+    local v = pc.grayaV(pv)
+    local a = pc.grayaA(pv)
+    return string.format("#%02x%02x%02x%02x", v, v, v, a)
+  elseif sprite.colorMode == ColorMode.INDEXED then
+    if pv == sprite.transparentColor then
+      return "#00000000"
+    end
+    local pal = sprite.palettes[1]
+    if pal and pv >= 0 and pv < #pal then
+      return util.colorToHex(pal:getColor(pv))
+    end
+    return "#00000000"
+  end
+  error("Unsupported sprite colorMode: " .. tostring(sprite.colorMode))
+end
+
 function util.refresh()
   if app.isUIAvailable then
     app.refresh()
