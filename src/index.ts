@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { LiveBackend, Router } from "./backend.ts";
 import { Bridge } from "./bridge.ts";
+import { HeadlessBackend } from "./headless.ts";
 import { PreviewHub } from "./preview.ts";
 import { getBridgePort } from "./protocol.ts";
 import { startHttpServer } from "./server.ts";
@@ -17,7 +18,12 @@ async function main(): Promise<void> {
   const serverHandle = startHttpServer({ port, bridge, preview });
 
   const live = new LiveBackend(bridge);
-  const router = new Router({ bridge, live });
+  const headless = new HeadlessBackend();
+  const router = new Router({
+    bridge,
+    live,
+    headless: headless.isAvailable() ? headless : null,
+  });
 
   let lastOwnRenderTs = 0;
   let renderInFlight = false;

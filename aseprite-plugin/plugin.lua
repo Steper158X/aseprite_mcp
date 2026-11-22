@@ -2,12 +2,14 @@ local PLUGIN_VERSION = "0.1.0"
 local DEFAULT_URL = "ws://127.0.0.1:7777/aseprite"
 local LEGACY_DEFAULT_URL = "ws://127.0.0.1:7531"
 
--- Keep WebSocket, timer, and listeners in module scope so Lua GC never collects them.
+-- Keep WebSocket, timers, and listeners in module scope so Lua GC never collects them.
 local ws = nil
 local connected = false
+local manualDisconnect = false
 local handlers = nil
 local pluginRef = nil
 local debounceTimer = nil
+local reconnectTimer = nil
 local siteListenerId = nil
 local watchedSprite = nil
 local spriteListenerId = nil
@@ -109,7 +111,15 @@ local function handleText(data)
   end
 end
 
-local function disconnectBridge()
+local function disconnectBridge(isManual)
+  if isManual then
+    manualDisconnect = true
+    if reconnectTimer then
+      pcall(function()
+        reconnectTimer:stop()
+      end)
+    end
+  end
   connected = false
   if debounceTimer then
     pcall(function()
@@ -126,7 +136,8 @@ local function disconnectBridge()
 end
 
 local function connectBridge(plugin)
-  disconnectBridge()
+  manualDisconnect = false
+  disconnectBridge(false)
   local url = getBridgeUrl(plugin)
 
   ws = WebSocket {
@@ -137,6 +148,11 @@ local function connectBridge(plugin)
     onreceive = function(mt, data)
       if mt == WebSocketMessageType.OPEN then
         connected = true
+        if reconnectTimer then
+          pcall(function()
+            reconnectTimer:stop()
+          end)
+        end
         sendJson({
           type = "hello",
           plugin = PLUGIN_VERSION,
@@ -156,6 +172,11 @@ local function connectBridge(plugin)
         end
       elseif mt == WebSocketMessageType.CLOSE then
         connected = false
+        if not manualDisconnect and reconnectTimer then
+          pcall(function()
+            reconnectTimer:start()
+          end)
+        end
       end
     end,
   }
@@ -194,6 +215,25 @@ function init(plugin)
       debounceTimer = timerOrErr
     end
 
+    local okReconn, reconnOrErr = pcall(function()
+      return Timer {
+        interval = 2.0,
+        ontick = function()
+          if reconnectTimer then
+            pcall(function()
+              reconnectTimer:stop()
+            end)
+          end
+          if not manualDisconnect and not connected and pluginRef then
+            connectBridge(pluginRef)
+          end
+        end,
+      }
+    end)
+    if okReconn then
+      reconnectTimer = reconnOrErr
+    end
+
     local okSite, lid = pcall(function()
       return app.events:on("sitechange", attachSpriteWatcher)
     end)
@@ -217,7 +257,7 @@ function init(plugin)
     title = "MCP Bridge: Disconnect",
     group = "file_scripts",
     onclick = function()
-      disconnectBridge()
+      disconnectBridge(true)
     end,
   }
 
@@ -242,6 +282,13 @@ function init(plugin)
 end
 
 function exit(_plugin)
+  manualDisconnect = true
+  if reconnectTimer then
+    pcall(function()
+      reconnectTimer:stop()
+    end)
+    reconnectTimer = nil
+  end
   if debounceTimer then
     pcall(function()
       debounceTimer:stop()
@@ -255,6 +302,6 @@ function exit(_plugin)
     siteListenerId = nil
   end
   detachSpriteWatcher()
-  disconnectBridge()
+  disconnectBridge(true)
   pluginRef = nil
 end

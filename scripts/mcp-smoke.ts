@@ -74,6 +74,13 @@ async function main(): Promise<void> {
 
     console.log("get_status:", JSON.stringify(status, null, 2));
 
+    const port = Number(status.port ?? 7777);
+    const htmlRes = await fetch(`http://127.0.0.1:${port}/`);
+    if (htmlRes.status !== 200) {
+      throw new Error(`Expected 200 from GET /, got ${htmlRes.status}`);
+    }
+    console.log(`GET http://127.0.0.1:${port}/ -> 200 OK`);
+
     if (status.activeBackend) {
       const spriteRes = await client.callTool({
         name: "new_sprite",
@@ -93,6 +100,21 @@ async function main(): Promise<void> {
         extractText(rectRes as { content: Array<{ type: string; text?: string }> }),
       );
 
+      const previewRes = await fetch(`http://127.0.0.1:${port}/preview.png`);
+      if (previewRes.status !== 200) {
+        throw new Error(`Expected 200 from GET /preview.png, got ${previewRes.status}`);
+      }
+      const previewBytes = new Uint8Array(await previewRes.arrayBuffer());
+      if (
+        previewBytes[0] !== 0x89 ||
+        previewBytes[1] !== 0x50 ||
+        previewBytes[2] !== 0x4e ||
+        previewBytes[3] !== 0x47
+      ) {
+        throw new Error("/preview.png missing PNG magic header");
+      }
+      console.log(`GET /preview.png verified (${previewBytes.length} bytes, valid PNG magic)`);
+
       const shotRes = (await client.callTool({
         name: "get_screenshot",
         arguments: {},
@@ -102,18 +124,17 @@ async function main(): Promise<void> {
       };
 
       if (shotRes.isError) {
-        console.log("get_screenshot returned error:", extractText(shotRes));
-      } else {
-        const img = shotRes.content.find((c) => c.type === "image");
-        if (!img?.data || img.mimeType !== "image/png") {
-          throw new Error("get_screenshot did not return a PNG image content block");
-        }
-        const bytes = Buffer.from(img.data, "base64");
-        if (bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) {
-          throw new Error("get_screenshot image is missing PNG magic header");
-        }
-        console.log(`get_screenshot PNG verified (${bytes.length} bytes, valid PNG magic)`);
+        throw new Error(`get_screenshot failed: ${extractText(shotRes)}`);
       }
+      const img = shotRes.content.find((c) => c.type === "image");
+      if (!img?.data || img.mimeType !== "image/png") {
+        throw new Error("get_screenshot did not return a PNG image content block");
+      }
+      const bytes = Buffer.from(img.data, "base64");
+      if (bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) {
+        throw new Error("get_screenshot image is missing PNG magic header");
+      }
+      console.log(`get_screenshot PNG verified (${bytes.length} bytes, valid PNG magic)`);
     } else {
       console.log("No live/headless backend active; skipping live draw_rect + get_screenshot.");
     }

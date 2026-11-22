@@ -88,7 +88,7 @@ export class Bridge implements BridgeTransport {
     this.helloInfo = null;
     if (active) {
       try {
-        active.close(1000, "Server stopping");
+        active.close(1001, "Server stopping");
       } catch {
         // ignore close errors on shutdown
       }
