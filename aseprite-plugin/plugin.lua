@@ -23,9 +23,14 @@ local function getBridgeUrl(plugin)
   return url
 end
 
+local function isTableLike(v)
+  local t = type(v)
+  return t == "table" or t == "userdata"
+end
+
 local function handleText(data)
   local okDec, req = pcall(json.decode, data)
-  if not okDec or type(req) ~= "table" then
+  if not okDec or not isTableLike(req) then
     return
   end
 
@@ -95,7 +100,7 @@ local function connectBridge(plugin)
           -- Best-effort fallback if handleText itself errored unexpectedly
           pcall(function()
             local parsedOk, req = pcall(json.decode, data)
-            if parsedOk and type(req) == "table" and type(req.id) == "string" then
+            if parsedOk and isTableLike(req) and type(req.id) == "string" then
               sendJson({ id = req.id, ok = false, error = tostring(err) })
             end
           end)

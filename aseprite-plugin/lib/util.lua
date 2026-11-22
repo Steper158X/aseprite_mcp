@@ -1,5 +1,10 @@
 local util = {}
 
+function util.isTableLike(v)
+  local t = type(v)
+  return t == "table" or t == "userdata"
+end
+
 function util.parseColor(hex)
   if type(hex) ~= "string" then
     error("Color must be a hex string (#RRGGBB or #RRGGBBAA)")

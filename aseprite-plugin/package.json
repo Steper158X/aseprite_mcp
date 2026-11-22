@@ -3,9 +3,13 @@
   "displayName": "Aseprite MCP Bridge",
   "description": "Live bridge between an MCP server and Aseprite",
   "version": "0.1.0",
+  "publisher": "StepZ",
   "author": {
     "name": "StepZ"
   },
+  "categories": [
+    "Scripts"
+  ],
   "contributes": {
     "scripts": [
       {

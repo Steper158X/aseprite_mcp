@@ -57,7 +57,7 @@ return function(util)
   end
 
   function handlers.draw_pixels(params)
-    if not params or type(params.pixels) ~= "table" then
+    if not params or not util.isTableLike(params.pixels) then
       error("pixels array is required")
     end
     local count = #params.pixels
