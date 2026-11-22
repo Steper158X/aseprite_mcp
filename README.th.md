@@ -6,6 +6,17 @@
 
 คู่มือนี้เขียนสำหรับคนที่**ยังไม่เคยตั้งค่าอะไรแนวนี้มาก่อน** ทำตามทีละขั้นได้เลย ไม่จำเป็นต้องเขียนโปรแกรมเป็น
 
+**อยากให้ AI ติดตั้งให้?** ก๊อปข้อความทั้งก้อนด้านล่าง ไปวางในแชท Cursor (หรือแอป AI ที่รองรับ) แล้วส่งเลย:
+
+```text
+อ่านคู่มือติดตั้งจากลิงก์นี้ แล้วติดตั้ง Aseprite MCP ให้ฉันทีละขั้น
+ฉันเป็นมือใหม่ — อธิบายภาษา่ายๆ ทำทีละขั้น และรันคำสั่งให้เองได้ถ้าทำได้
+
+https://raw.githubusercontent.com/Steper158X/aseprite_mcp/main/docs/AI_INSTALL_PLAYBOOK.md
+```
+
+(หน้าอ่านบน GitHub: [docs/AI_INSTALL_PLAYBOOK.md](https://github.com/Steper158X/aseprite_mcp/blob/main/docs/AI_INSTALL_PLAYBOOK.md) — ถ้าเปิดโฟลเดอร์โปรเจกต์ในแชทอยู่แล้ว ใช้ `@docs/AI_INSTALL_PLAYBOOK.md` แทนลิงก์ก็ได้)
+
 ---
 
 ## ตัวอย่างผลงาน

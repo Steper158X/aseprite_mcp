@@ -6,6 +6,17 @@ This project lets an AI assistant (Cursor, Claude Desktop, Antigravity, and simi
 
 You do **not** need to know programming to follow this guide. Work through the steps in order.
 
+**Prefer the AI to install for you?** Copy the whole prompt below into Cursor (or another MCP-capable chat) and send it:
+
+```text
+Read this install playbook and install Aseprite MCP for me step by step.
+I am a beginner — explain simply, do one step at a time, and run commands yourself when you can.
+
+https://raw.githubusercontent.com/Steper158X/aseprite_mcp/main/docs/AI_INSTALL_PLAYBOOK.md
+```
+
+(Readable page: [docs/AI_INSTALL_PLAYBOOK.md](https://github.com/Steper158X/aseprite_mcp/blob/main/docs/AI_INSTALL_PLAYBOOK.md). If this repo is already open in the chat, you can `@docs/AI_INSTALL_PLAYBOOK.md` instead of the URL.)
+
 ---
 
 ## Examples of what this can make

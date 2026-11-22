@@ -1,0 +1,10 @@
+---
+description: Guide non-technical users through installing and configuring Aseprite MCP (ติดตั้ง / setup / install). Follow docs/AI_INSTALL_PLAYBOOK.md.
+alwaysApply: false
+---
+
+# Aseprite MCP install (agent)
+
+When the user asks to install, set up, configure, or ติดตั้ง Aseprite MCP (or make AI drawing in Aseprite work), **read and follow** `docs/AI_INSTALL_PLAYBOOK.md` end-to-end.
+
+Do not improvise a different install sequence unless that playbook’s path fails. Prefer running commands yourself, one verified step at a time, in the user’s language.
