@@ -27,7 +27,7 @@ describe("PreviewHub & HTTP endpoints", () => {
   test("GET / serves preview HTML and GET /preview.png tracks frame state", async () => {
     const bridge = new Bridge();
     const preview = new PreviewHub();
-    const handle = startHttpServer({ port: 0, bridge, preview });
+    const handle = await startHttpServer({ port: 0, bridge, preview });
     handles.push(handle);
 
     const htmlRes = await fetch(`http://127.0.0.1:${handle.port}/`);
@@ -58,7 +58,7 @@ describe("PreviewHub & HTTP endpoints", () => {
   test("WebSocket /preview receives initial state and live broadcasts", async () => {
     const bridge = new Bridge();
     const preview = new PreviewHub();
-    const handle = startHttpServer({ port: 0, bridge, preview });
+    const handle = await startHttpServer({ port: 0, bridge, preview });
     handles.push(handle);
 
     preview.publishStatus({ activeBackend: "live", connected: true });

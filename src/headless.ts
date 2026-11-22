@@ -1,6 +1,9 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { type Backend, getWorkdir, type RenderedPreview } from "./backend.ts";
+import { readFileBytes, readJsonFile } from "./fs-utils.ts";
+import { pluginRoot } from "./paths.ts";
+import { spawnCapture } from "./process-utils.ts";
 import { assertPathAllowed } from "./protocol.ts";
 
 export interface HeadlessState {
@@ -65,47 +68,34 @@ export async function defaultHeadlessRunner(
   writeFileSync(reqPath, JSON.stringify(req), "utf8");
 
   try {
-    const proc = Bun.spawn(
-      [
+    let result: Awaited<ReturnType<typeof spawnCapture>>;
+    try {
+      result = await spawnCapture(
         context.asepritePath,
-        "-b",
-        "--script-param",
-        `req=${reqPath}`,
-        "--script-param",
-        `res=${resPath}`,
-        "--script-param",
-        `lib=${context.libDir}`,
-        "--script",
-        context.headlessLua,
-      ],
-      {
-        stdout: "pipe",
-        stderr: "pipe",
-      },
-    );
-
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      try {
-        proc.kill();
-      } catch {
-        // ignore kill error
-      }
-    }, SPAWN_TIMEOUT_MS);
-
-    const [exitCode, stdoutText, stderrText] = await Promise.all([
-      proc.exited,
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-    clearTimeout(timer);
-
-    if (timedOut) {
-      throw new Error(
-        `Aseprite headless command "${req.method}" timed out after ${SPAWN_TIMEOUT_MS}ms`,
+        [
+          "-b",
+          "--script-param",
+          `req=${reqPath}`,
+          "--script-param",
+          `res=${resPath}`,
+          "--script-param",
+          `lib=${context.libDir}`,
+          "--script",
+          context.headlessLua,
+        ],
+        { timeoutMs: SPAWN_TIMEOUT_MS },
       );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/timed out/i.test(msg)) {
+        throw new Error(
+          `Aseprite headless command "${req.method}" timed out after ${SPAWN_TIMEOUT_MS}ms`,
+        );
+      }
+      throw err;
     }
+
+    const { exitCode, stdout: stdoutText, stderr: stderrText } = result;
 
     if (!existsSync(resPath)) {
       throw new Error(
@@ -113,7 +103,7 @@ export async function defaultHeadlessRunner(
       );
     }
 
-    const parsed = (await Bun.file(resPath).json()) as HeadlessRunnerResponse;
+    const parsed = await readJsonFile<HeadlessRunnerResponse>(resPath);
     if (exitCode !== 0 && parsed.ok !== false) {
       throw new Error(
         `Aseprite headless exited with code ${exitCode}. stdout=${stdoutText.trim()} stderr=${stderrText.trim()}`,
@@ -158,9 +148,9 @@ export class HeadlessBackend implements Backend {
   constructor(options: HeadlessBackendOptions = {}) {
     this.asepritePath = options.asepritePath ?? process.env.ASEPRITE_PATH?.trim() ?? "";
     this.workdir = options.workdir ?? getWorkdir();
-    const pluginRoot = resolve(import.meta.dir, "..", "aseprite-plugin");
-    this.headlessLua = options.headlessLua ?? join(pluginRoot, "headless.lua");
-    this.libDir = options.libDir ?? join(pluginRoot, "lib");
+    const root = pluginRoot();
+    this.headlessLua = options.headlessLua ?? join(root, "headless.lua");
+    this.libDir = options.libDir ?? join(root, "lib");
     this.runner = options.runner ?? defaultHeadlessRunner;
     this.hasCustomRunner = Boolean(options.runner);
 
@@ -243,7 +233,7 @@ export class HeadlessBackend implements Backend {
         }
 
         if (mutating && previewPath && existsSync(previewPath)) {
-          const png = await Bun.file(previewPath).bytes();
+          const png = await readFileBytes(previewPath);
           this.latestPreview = {
             png,
             width: res.previewMeta?.width ?? 0,
@@ -306,7 +296,7 @@ export class HeadlessBackend implements Backend {
           { save: false, render: false },
         );
 
-        const png = await Bun.file(previewPath).bytes();
+        const png = await readFileBytes(previewPath);
         const meta = (res.result ?? {}) as {
           width?: number;
           height?: number;
@@ -447,7 +437,7 @@ export class HeadlessBackend implements Backend {
           { save: false, render: false },
         );
         if (existsSync(previewPath)) {
-          const png = await Bun.file(previewPath).bytes();
+          const png = await readFileBytes(previewPath);
           const meta = (res.result ?? {}) as {
             width?: number;
             height?: number;

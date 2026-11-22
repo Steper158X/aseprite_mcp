@@ -53,7 +53,7 @@ describe("Bridge", () => {
   test("call resolves with result and stores hello info", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);
-    bridge.start(0);
+    await bridge.start(0);
     expect(bridge.port).toBeGreaterThan(0);
 
     const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`, (req, sock) => {
@@ -83,7 +83,7 @@ describe("Bridge", () => {
   test("error response from plugin rejects call", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);
-    bridge.start(0);
+    await bridge.start(0);
 
     const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`, (req, sock) => {
       sock.send(JSON.stringify({ id: req.id, ok: false, error: "No active sprite" }));
@@ -96,7 +96,7 @@ describe("Bridge", () => {
   test("timeout rejects pending request", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);
-    bridge.start(0);
+    await bridge.start(0);
 
     const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`);
     sockets.push(ws);
@@ -107,7 +107,7 @@ describe("Bridge", () => {
   test("disconnect rejects all pending requests", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);
-    bridge.start(0);
+    await bridge.start(0);
 
     const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`);
     sockets.push(ws);
@@ -129,7 +129,7 @@ describe("Bridge", () => {
   test("new client replaces old client cleanly", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);
-    bridge.start(0);
+    await bridge.start(0);
 
     let firstClosed = false;
     const ws1 = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`);
@@ -162,20 +162,36 @@ describe("Bridge", () => {
   test("port conflict does not throw on start and rejects calls cleanly", async () => {
     const bridge1 = new Bridge();
     bridges.push(bridge1);
-    bridge1.start(0);
+    await bridge1.start(0);
 
     const bridge2 = new Bridge();
     bridges.push(bridge2);
-    bridge2.start(bridge1.port);
+    await bridge2.start(bridge1.port);
 
     expect(bridge2.portConflict).not.toBeNull();
     await expect(bridge2.call("ping")).rejects.toThrow(/already in use/i);
   });
 
+  test("start can retry on a free port after EADDRINUSE soft-fail", async () => {
+    const bridge1 = new Bridge();
+    bridges.push(bridge1);
+    await bridge1.start(0);
+
+    const bridge2 = new Bridge();
+    bridges.push(bridge2);
+    await bridge2.start(bridge1.port);
+    expect(bridge2.portConflict).not.toBeNull();
+
+    await bridge2.start(0);
+    expect(bridge2.portConflict).toBeNull();
+    expect(bridge2.port).toBeGreaterThan(0);
+    expect(bridge2.port).not.toBe(bridge1.port);
+  });
+
   test("WebSocket connection to /other is refused", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);
-    bridge.start(0);
+    await bridge.start(0);
 
     const refused = await new Promise<boolean>((resolve) => {
       const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/other`);
@@ -192,7 +208,7 @@ describe("Bridge", () => {
   test("stop rejects waitForConnection immediately", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);
-    bridge.start(0);
+    await bridge.start(0);
 
     const waiting = bridge.waitForConnection(5000);
     bridge.stop();
@@ -205,7 +221,7 @@ describe("Bridge", () => {
     try {
       const bridge = new Bridge();
       bridges.push(bridge);
-      bridge.start(0);
+      await bridge.start(0);
 
       const denied = await new Promise<boolean>((resolve) => {
         const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/aseprite`);

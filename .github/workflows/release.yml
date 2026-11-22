@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test
+        run: bun test
+
+      - name: Build Node package
+        run: bun run build
+
+      - name: Build binaries
+        run: bun run build:binaries
+
+      - name: Stage release assets
+        run: |
+          mkdir -p release
+          # Per-platform zip: binary + plugin/preview beside it
+          cd dist/binaries
+          for bin in aseprite-mcp-windows-x64.exe aseprite-mcp-darwin-x64 aseprite-mcp-darwin-arm64 aseprite-mcp-linux-x64; do
+            if [ -f "$bin" ]; then
+              zip -r "../../release/${bin}.zip" "$bin" aseprite-plugin preview aseprite-mcp-bridge.aseprite-extension
+            fi
+          done
+          cd ../..
+          cp dist/aseprite-mcp-bridge.aseprite-extension release/ 2>/dev/null || true
+          ls -la release
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

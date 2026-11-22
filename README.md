@@ -1,289 +1,443 @@
 **English** | [ภาษาไทย](README.th.md)
 
-# Aseprite MCP — Live Local Socket Bridge + Headless + Web Preview
+# Aseprite MCP — Setup Guide
 
-Let an AI assistant (Antigravity, Claude Desktop, Cursor, etc.) draw pixel art and animations **live inside your open Aseprite window**. Every AI edit appears immediately on your canvas, can be undone with a single `Ctrl+Z`, and lets you draw alongside the AI at any time.
+This project lets an AI assistant (Cursor, Claude Desktop, Antigravity, and similar apps) **draw pixel art live inside Aseprite** on your computer. You see every stroke on the canvas, you can undo with `Ctrl+Z`, and you can draw with the mouse at the same time.
 
-It also works **even when Aseprite is closed** (Headless mode via `ASEPRITE_PATH`) and includes a built-in **Web Preview** (`http://127.0.0.1:7777/`) that updates live from both AI tool calls and your own manual brushstrokes.
-
----
-
-## Showcase
-
-| Animated Sprite (32×32, 4 Frames) | Animated Cozy Piano Room (96×96, 6 Layers, 4 Frames) |
-| :---: | :---: |
-| ![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif) | ![Animated Cozy Isometric Piano Room created live via Aseprite MCP](docs/demo-piano-room.gif) |
-| 4-frame smiling orange tabby (`160 ms/frame`, 8× display) built with `draw_pixel_art`, `add_frame`, `set_frame_duration` | 4-frame cozy sunlit 2:1 isometric diorama (`220 ms/frame`, 4× display) with swaying pianist, floating musical notes, pulsing lamp, and drifting dust motes |
-
-### Layer & Layout Breakdown (Piano Room)
-
-Built progressively from background to atmosphere — every layer stays cleanly editable in Aseprite:
-
-| 1. `Backdrop` + `Room Shell` | 2. + `Window & Decor` | 3. + `Piano & Bench` | 4. + `Pianist` | 5. + `Sunlight` *(Final)* |
-| :---: | :---: | :---: | :---: | :---: |
-| ![Step 1: Room Shell](docs/layers/01-room-shell.png) | ![Step 2: Window & Decor](docs/layers/02-window-decor.png) | ![Step 3: Piano & Bench](docs/layers/03-piano-bench.png) | ![Step 4: Pianist](docs/layers/04-pianist.png) | ![Step 5: Sunlight](docs/layers/05-sunlight.png) |
-
-| Layer | Properties | Contents |
-| --- | --- | --- |
-| `Backdrop` | `opacity: 255`, `normal` | Deep plum-slate backdrop (`#231f2b`) framing the isometric diorama |
-| `Room Shell` | `opacity: 255`, `normal` | 2:1 isometric cream walls, baseboards, oak wood planks, and cutaway slab |
-| `Window & Decor` | `opacity: 255`, `normal` | Sunlit window with curtains, woven floor rug, corner plant, sunset art, and bookshelf |
-| `Piano & Bench` | `opacity: 255`, `normal` | Upright mahogany piano (keys, sheet music, brass pedals, lamp) and square cushioned stool |
-| `Pianist` | `opacity: 255`, `normal` | Seated character swaying with the melody across 4 frames + floating musical notes |
-| `Sunlight` | `opacity: 55`, `screen` | Diagonal golden sunbeams from the window, lamp glow halo, and drifting dust motes |
+You do **not** need to know programming to follow this guide. Work through the steps in order.
 
 ---
 
-## Architecture
+## What you will set up
 
-```text
-AI Client ──(stdio MCP)──► Bun Server (src/index.ts)
-                             ├─ Router (src/backend.ts): auto | live | headless
-                             │    ├─ LiveBackend     ──► ws://127.0.0.1:7777/aseprite ──► Aseprite Extension (handlers.lua)
-                             │    └─ HeadlessBackend ──► spawn ASEPRITE_PATH -b --script headless.lua (handlers.lua)
-                             └─ Web Preview (:7777)
-                                  ├─ GET /            (live pixel viewer + zoom slider + last 20 activity log)
-                                  ├─ GET /preview.png (latest rendered PNG)
-                                  └─ WS  /preview     (real-time stream from AI edits & manual strokes)
-```
+Three pieces work together:
+
+1. **Aseprite** — the pixel art program (you already need a licensed copy).
+2. **Aseprite MCP Bridge** — a small Aseprite extension that talks to the AI bridge.
+3. **Aseprite MCP server** — a small local program your AI app starts automatically.
+
+After setup, you open Aseprite, open your AI app, and type something like:  
+`Create a 32x32 canvas and draw a cute orange cat`
 
 ---
 
-## Complete Beginner Setup Guide (Step-by-Step)
+## Before you begin — checklist
 
-You do **not** need Python, virtual environments, or complex dev tooling — this project uses **Bun** to run everything in one place.
+| Item | Notes |
+| --- | --- |
+| Aseprite installed | Steam or standalone is fine |
+| An AI app that supports MCP | Cursor, Claude Desktop, or Antigravity |
+| About 10–15 minutes | First-time setup only |
+| **Node.js 20 or newer** *(recommended path)* | Free download: https://nodejs.org/ (LTS) |
 
-### Step 1: Install Bun
-
-Bun is the lightweight runtime that runs the Aseprite MCP server.
-
-#### On Windows
-1. Open the **Start Menu**, type `PowerShell`, and click **Windows PowerShell**.
-2. Paste this command and press **Enter**:
-   ```powershell
-   powershell -c "irm bun.sh/install.ps1 | iex"
-   ```
-3. **Close PowerShell and open a new PowerShell window** (so Windows picks up the new `bun` command).
-4. Verify it works by running:
-   ```powershell
-   bun --version
-   ```
-   You should see a version number like `1.4.4`.
-5. *(Optional — helpful for AI Client config later)* Find the exact path to `bun.exe`:
-   ```powershell
-   where.exe bun
-   ```
-   It is usually `C:\Users\<YourUsername>\.bun\bin\bun.exe`.
-
-#### On macOS / Linux
-1. Open **Terminal**.
-2. Run:
-   ```bash
-   curl -fsSL https://bun.sh/install | bash
-   ```
-3. Close and reopen **Terminal**, then verify:
-   ```bash
-   bun --version
-   ```
+Optional later: a ready-made **release binary** from this project's GitHub Releases page (no Node.js needed). Prefer that only if someone already published a release zip for your OS.
 
 ---
 
-### Step 2: Download & Prepare the Project
+## Part 1 — Get the project files
 
-- **Option A — Download ZIP (No Git required):**
-  1. Download this repository as a ZIP file and extract it somewhere easy to find, for example `F:\coding\aseprite_mcp`.
-  2. Open **PowerShell** (or Terminal) inside that folder (e.g., on Windows, open the folder, click the address bar, type `powershell`, and press **Enter**).
-- **Option B — Using Git:**
-  ```bash
-  git clone <repo-url>
-  cd aseprite_mcp
-  ```
+### Option A — Download ZIP (no Git needed)
 
-Next, run these two commands inside the `aseprite_mcp` folder:
+1. Open this repository on GitHub.
+2. Click the green **Code** button → **Download ZIP**.
+3. Extract the ZIP somewhere easy to find, for example:
+   - Windows: `C:\Users\<YourUsername>\aseprite_mcp`
+   - macOS: `/Users/<YourUsername>/aseprite_mcp`
+4. Remember this folder path. You will paste it into settings later.
+
+### Option B — Git clone
+
 ```bash
-bun install
-bun run package-plugin
+git clone <this-repo-url>
+cd aseprite_mcp
 ```
-- `bun install` downloads the required packages once.
-- `bun run package-plugin` builds the single-file plugin at `dist/aseprite-mcp-bridge.aseprite-extension`.
+
+Replace `<this-repo-url>` with the real GitHub URL of this repository.
 
 ---
 
-### Step 3: Install the Plugin into Aseprite
+## Part 2 — Install Node.js (if you do not have it)
 
-1. Open **Aseprite**.
-2. Open the `dist` folder inside `aseprite_mcp` and **drag `aseprite-mcp-bridge.aseprite-extension` directly onto the Aseprite window**.
-   - *Alternative:* In Aseprite, click **Edit > Preferences > Extensions > Add Extension**, select `dist/aseprite-mcp-bridge.aseprite-extension`, and click **Apply / OK**.
-3. If Aseprite asks for permission to run scripts or connect to localhost, choose **Give full trust**.
-4. **Restart Aseprite once** so the plugin activates and auto-connects.
-5. Check **Edit > Preferences > Extensions** to confirm **Aseprite MCP Bridge** is listed and checked.
-   - *(Tip)* You can also check connection status or connect/disconnect manually anytime inside Aseprite under **File > MCP Bridge...**.
+1. Go to https://nodejs.org/ and install the **LTS** version.
+2. Close and reopen your terminal (PowerShell on Windows, Terminal on macOS).
+3. Check that it works:
+
+```bash
+node --version
+```
+
+You should see a version like `v20.x.x` or higher. If the command is not found, restart the computer once and try again.
 
 ---
 
-### Step 4: Connect to Your AI Client
+## Part 3 — Install dependencies and build
 
-Choose the AI app you use and add the `"aseprite"` entry to its MCP config file.
+1. Open a terminal **inside the project folder** from Part 1.
+   - Windows tip: open the folder in File Explorer, click the address bar, type `powershell`, press Enter.
+2. Run these commands one by one:
 
-> **How to find `Aseprite.exe` on Steam (Windows):**  
-> Open Steam → Right-click **Aseprite** → **Manage > Browse local files** → Copy the folder path (usually `F:\SteamLibrary\steamapps\common\Aseprite\Aseprite.exe` or `C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe`).
+```bash
+npm install
+npm run build
+```
 
-#### Antigravity
-Open `~/.gemini/config/mcp_config.json` (on Windows: `C:\Users\<YourUsername>\.gemini\config\mcp_config.json`):
+What this does:
+
+- `npm install` downloads the libraries the server needs (once).
+- `npm run build` creates:
+  - `dist/bin.js` — the program your AI app will run
+  - `dist/aseprite-mcp-bridge.aseprite-extension` — the Aseprite plugin package
+  - `dist/preview/` — files for the live web preview page
+
+If a command fails, copy the full error text and check [Troubleshooting](#troubleshooting) below.
+
+---
+
+## Part 4 — Install the Aseprite plugin
+
+### Easy way (recommended)
+
+Still in the project folder, run:
+
+```bash
+node dist/bin.js install-plugin
+```
+
+Then **fully quit and reopen Aseprite**.
+
+Check: in Aseprite go to **Edit → Preferences → Extensions**. You should see **Aseprite MCP Bridge** and it should be checked.
+
+### Manual way (drag and drop)
+
+1. Open the `dist` folder inside the project.
+2. Drag `aseprite-mcp-bridge.aseprite-extension` onto the Aseprite window.
+3. If Aseprite asks for script / network permission, choose **Give full trust** (or the closest wording).
+4. Restart Aseprite once.
+5. Confirm under **Edit → Preferences → Extensions**.
+
+You can also open **File → MCP Bridge...** later to see Connect / Disconnect status.
+
+---
+
+## Part 5 — Find your Aseprite path
+
+Your AI config needs the full path to the Aseprite program (for drawing even when the window is closed).
+
+### Windows (Steam)
+
+1. Open Steam.
+2. Right-click **Aseprite** → **Manage → Browse local files**.
+3. Copy the folder path, then add `\Aseprite.exe` at the end.
+
+Common examples:
+
+- `C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe`
+- `D:\SteamLibrary\steamapps\common\Aseprite\Aseprite.exe`
+
+### macOS
+
+Typical path:
+
+- `/Applications/Aseprite.app/Contents/MacOS/aseprite`
+
+If you installed from Steam, it may live under:
+
+- `~/Library/Application Support/Steam/steamapps/common/Aseprite/Aseprite.app/Contents/MacOS/aseprite`
+
+### Tip
+
+The setup command can often find Aseprite for you:
+
+```bash
+node dist/bin.js setup --print
+```
+
+Look at the printed `ASEPRITE_PATH` value. If it says “not found”, set the path yourself in Part 6.
+
+---
+
+## Part 6 — Connect your AI app
+
+You will add an entry named `"aseprite"` to your AI app's MCP settings.
+
+**Replace these placeholders with your real paths:**
+
+- `<PROJECT>` → your project folder from Part 1  
+  Example: `C:/Users/Alex/aseprite_mcp`
+- `<ASEPRITE>` → your Aseprite executable from Part 5  
+  Example: `C:/Program Files (x86)/Steam/steamapps/common/Aseprite/Aseprite.exe`
+
+On Windows, either style works in JSON:
+
+- Forward slashes: `C:/Users/Alex/...`
+- Or escaped backslashes: `C:\\Users\\Alex\\...`
+
+### Shortcut: let setup write the file
+
+From the project folder:
+
+```bash
+# Cursor (writes .cursor/mcp.json in the current folder, or ~/.cursor/mcp.json)
+node dist/bin.js setup --cursor
+
+# Claude Desktop
+node dist/bin.js setup --claude
+
+# Antigravity
+node dist/bin.js setup --antigravity
+
+# Only print the JSON so you can copy it yourself
+node dist/bin.js setup --print
+```
+
+### Cursor (manual)
+
+Create or edit `.cursor/mcp.json` in your project (or your global Cursor MCP settings):
 
 ```json
 {
   "mcpServers": {
     "aseprite": {
-      "command": "C:\\Users\\<YourUsername>\\.bun\\bin\\bun.exe",
-      "args": ["run", "F:\\coding\\aseprite_mcp\\src\\index.ts"],
+      "command": "node",
+      "args": ["<PROJECT>/dist/bin.js"],
       "env": {
-        "ASEPRITE_PATH": "F:\\SteamLibrary\\steamapps\\common\\Aseprite\\Aseprite.exe"
+        "ASEPRITE_PATH": "<ASEPRITE>"
       }
     }
   }
 }
 ```
-Then open **Additional Options (`...`) > MCP Servers > Refresh** (or start a new chat).
 
-#### Claude Desktop
-Open the config file:
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json` *(Press `Win+R`, type `%APPDATA%\Claude`, press Enter)*
+Then open **Cursor Settings → MCP** and refresh / reload.
+
+### Claude Desktop (manual)
+
+Config file locations:
+
+- **Windows:** press `Win+R`, paste `%APPDATA%\Claude`, press Enter, open `claude_desktop_config.json`
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-Add (merge inside `"mcpServers"` if you already have other servers):
+Merge this inside `"mcpServers"` (keep any other servers you already have):
+
 ```json
 {
   "mcpServers": {
     "aseprite": {
-      "command": "bun",
-      "args": ["run", "F:/coding/aseprite_mcp/src/index.ts"],
+      "command": "node",
+      "args": ["<PROJECT>/dist/bin.js"],
       "env": {
-        "ASEPRITE_PATH": "F:/SteamLibrary/steamapps/common/Aseprite/Aseprite.exe"
+        "ASEPRITE_PATH": "<ASEPRITE>"
       }
     }
   }
 }
 ```
-Fully quit Claude Desktop (check the system tray) and reopen it.
 
-#### Cursor
-Create or edit `.cursor/mcp.json` in your project (or global Cursor MCP settings):
+Fully quit Claude Desktop (including the tray icon) and open it again.
+
+### Antigravity (manual)
+
+Edit `~/.gemini/config/mcp_config.json`  
+(Windows: `C:\Users\<YourUsername>\.gemini\config\mcp_config.json`)
+
 ```json
 {
   "mcpServers": {
     "aseprite": {
-      "command": "bun",
-      "args": ["run", "F:/coding/aseprite_mcp/src/index.ts"],
+      "command": "node",
+      "args": ["<PROJECT>/dist/bin.js"],
       "env": {
-        "ASEPRITE_PATH": "F:/SteamLibrary/steamapps/common/Aseprite/Aseprite.exe"
+        "ASEPRITE_PATH": "<ASEPRITE>"
       }
     }
   }
 }
 ```
-Reload Cursor or refresh MCP servers in **Cursor Settings > MCP**.
 
-> **Windows tip:** If your AI client says `command "bun" not found`, replace `"command": "bun"` with the full path you found in Step 1 (e.g. `"C:\\Users\\<YourUsername>\\.bun\\bin\\bun.exe"`).  
-> **Note on `ASEPRITE_PATH`:** Including `ASEPRITE_PATH` enables **Headless fallback** when Aseprite is closed. If you only want Live mode, you can omit `"env"`.
+Refresh MCP servers from the Antigravity UI (or start a new chat).
 
 ---
 
-## How to Use (Detailed Guide)
+## Part 7 — First test
 
-### 1. Live Mode (Recommended — Draw Together in Real Time)
-1. **Open Aseprite** and leave the window open on your screen. (The extension connects automatically to `ws://127.0.0.1:7777/aseprite`.)
-2. Open your AI client (Antigravity, Claude Desktop, or Cursor) and start chatting.
-3. Ask the AI to check the connection (`"Check Aseprite status"`) or go straight to drawing (`"Create a 32x32 canvas and draw a cute orange cat"`).
-4. **Watch it draw live:** Every shape, layer, frame, and pixel appears instantly inside Aseprite!
-5. **Undo or edit anytime:**
-   - Each AI drawing call is grouped into **one Undo step**, so pressing **`Ctrl+Z`** once in Aseprite reverts that entire AI step cleanly.
-   - You can use Aseprite's pencil, eraser, fill, or palette tools right alongside the AI without closing anything.
-   - For animations, press **`Enter`** in Aseprite to preview the loop playback.
+1. Open **Aseprite** and leave it open.
+2. Open your AI app.
+3. Ask:
 
-### 2. Headless Mode (Draw Without Opening Aseprite)
-1. As long as `ASEPRITE_PATH` is set in your MCP config, you don't even need to open Aseprite.
-2. When Aseprite is closed (`ASEPRITE_MODE=auto`), the server automatically runs `Aseprite.exe -b` in the background to execute every drawing, layer, frame, palette, and export command.
-3. You can still ask the AI to save/export the final file (`"Save as my-cat.aseprite"` or `"Export as cat.gif"`), or watch it live on the Web Preview page!
-4. Headless mode maintains up to **50 snapshot undo/redo steps** automatically.
+```text
+Check Aseprite MCP status
+```
 
-### 3. Using the Web Preview (`http://127.0.0.1:7777/`)
-Whenever your AI client has the MCP server running, open a browser to:
-- **`http://127.0.0.1:7777/`** — Interactive Web Preview
-- **`http://127.0.0.1:7777/preview.png`** — Direct latest PNG image
+You want a reply that says the bridge is connected (Live), or at least that the server is running.
 
-What you'll see in the Web Preview:
-- **Status Badge** at top-left:
-  - Green **`LIVE`** = Connected to your open Aseprite window
-  - Blue **`HEADLESS`** = Rendering via background Aseprite batch runs
-  - Gray **`DISCONNECTED`** = Waiting for Aseprite or first render
-- **Zoom Slider**: Scale pixels cleanly (`25%`–`200%`) with sharp nearest-neighbor rendering (`image-rendering: pixelated`) over a transparent checkerboard.
-- **Activity Log (Last 20)**: Shows each AI command (`draw_pixel_art`, `add_frame`, etc.) and even **`manual_edit`** automatically whenever you paint in Aseprite with your own mouse/stylus!
+Then try:
 
-### 4. Example Prompts You Can Try
-- **Check setup:** `"Check Aseprite MCP status"`
-- **Start a canvas & draw:** `"Create a 32x32 RGB sprite and draw a cute smiling orange tabby cat on its own layer"`
-- **Refine & inspect:** `"Take a screenshot of the canvas and check if the proportions look good"`
-- **Make it animated:** `"Turn this into a 4-frame tail-wagging animation at 160ms per frame"`
-- **Manage layers & palette:** `"Add a Shadow layer with 50% opacity and multiply blend mode, then get the current palette"`
-- **Save & export:** `"Save this sprite as F:/art/cat.aseprite and also export a copy as F:/art/cat.gif"`
+```text
+Create a 32x32 RGB sprite and draw a cute smiling orange cat on its own layer
+```
+
+Watch the Aseprite window. Pixels should appear live.
+
+### Live web preview (optional)
+
+While the AI app has the MCP server running, open a browser to:
+
+- http://127.0.0.1:7777/ — interactive preview
+- http://127.0.0.1:7777/preview.png — latest image only
+
+Status badge meanings:
+
+- **LIVE** — connected to open Aseprite
+- **HEADLESS** — drawing in the background without the GUI
+- **DISCONNECTED** — waiting for Aseprite or the first render
 
 ---
 
-## Modes & Environment Variables
+## Everyday use
 
-### Backend Modes (`ASEPRITE_MODE`)
+### Draw together (Live mode)
 
-| Mode | Behavior |
-| --- | --- |
-| `auto` *(default)* | Uses **Live** whenever Aseprite is open and connected; automatically falls back to **Headless** if `ASEPRITE_PATH` is set. |
-| `live` | Requires a live Aseprite GUI connection via the extension; returns a clear error if Aseprite is not connected. |
-| `headless` | Always spawns `ASEPRITE_PATH -b --script` even if Aseprite GUI is open. |
+1. Keep Aseprite open.
+2. Chat with the AI as usual.
+3. Each AI drawing command is one Undo step → press **`Ctrl+Z`** once to undo that step.
+4. You can paint with Aseprite tools at any time while the AI works.
+5. For animations, press **`Enter`** in Aseprite to preview playback.
 
-### Environment Variables
+### Draw with Aseprite closed (Headless mode)
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `ASEPRITE_MCP_PORT` | `7777` | Port for HTTP Preview (`/`, `/preview.png`) and WebSockets (`/aseprite`, `/preview`). |
-| `ASEPRITE_PATH` | *(unset)* | Full path to `Aseprite.exe` to enable Headless batch mode. |
-| `ASEPRITE_MODE` | `auto` | Backend mode: `auto`, `live`, or `headless`. |
-| `ASEPRITE_MCP_WORKDIR` | `<os.tmpdir()>/aseprite-mcp` | Temp directory for preview PNGs and Headless workspace/history snapshots. |
-| `ASEPRITE_MCP_ALLOW_LUA` | `0` | Set to `1` to register the opt-in `run_lua` escape-hatch tool. |
-| `ASEPRITE_MCP_OPEN_PREVIEW` | `0` | Set to `1` to automatically open `http://127.0.0.1:<port>/` in your browser on startup. |
+If `ASEPRITE_PATH` is set correctly, the server can still draw using Aseprite in the background. Use the web preview to watch progress, then ask the AI to save or export the file.
 
----
+### Example prompts
 
-## Available Tools (30 + 1 opt-in)
+- `Check Aseprite MCP status`
+- `Create a 32x32 RGB sprite and draw a cute smiling orange tabby cat on its own layer`
+- `Take a screenshot of the canvas and check if the proportions look good`
+- `Turn this into a 4-frame tail-wagging animation at 160ms per frame`
+- `Add a Shadow layer with 50% opacity and multiply blend mode`
+- `Save this sprite as C:/art/cat.aseprite and also export C:/art/cat.gif`
 
-| Category | Tools |
-| --- | --- |
-| **Status & Files** | `get_status`, `ping`, `get_sprite_info`, `list_sprites`, `set_active_sprite`, `new_sprite`, `open_sprite`, `save_sprite` |
-| **Drawing & History** | `draw_pixels`, `draw_pixel_art`, `draw_line`, `draw_rect`, `draw_ellipse`, `fill_area`, `clear`, `set_colors`, `undo`, `redo` |
-| **Layers** | `add_layer`, `delete_layer`, `set_active_layer`, `set_layer_props` |
-| **Frames** | `add_frame`, `delete_frame`, `set_active_frame`, `set_frame_duration` |
-| **Palette** | `get_palette`, `set_palette` |
-| **Inspection** | `get_screenshot` *(returns crisp upscaled PNG)*, `get_pixels` *(returns `#rrggbbaa` grid up to `128×128`)* |
-| **Advanced (Opt-in)** | `run_lua` *(enabled only when `ASEPRITE_MCP_ALLOW_LUA=1`)* |
+Use folders that already exist on your machine, or ask the AI to create them if your setup allows it.
 
 ---
 
-## Developer Scripts
+## Alternative install — release binary
 
-- `bun start` — Run the MCP stdio server directly
-- `bun test` — Run unit tests (`bridge`, `headless`, `preview`, `raster`)
-- `bun run typecheck` — Run strict TypeScript check (`tsc --noEmit`)
-- `bun run package-plugin` — Build `dist/aseprite-mcp-bridge.aseprite-extension`
-- `bun run smoke` — Run end-to-end MCP stdio smoke test (Live, Headless, or offline status check)
-- `bun run cli --wait 10 <method> '<json>'` — Send a single command directly to the live Aseprite extension
+If this project publishes GitHub Releases with a zip for your OS:
+
+1. Download the zip for your system (Windows / macOS / Linux).
+2. Extract it somewhere permanent, for example `C:\Tools\aseprite-mcp\`.
+3. Keep `aseprite-plugin` and `preview` next to the `.exe` (or binary). Do not delete them.
+4. Run setup once:
+
+```bash
+aseprite-mcp-windows-x64.exe setup --cursor
+```
+
+5. In MCP config, point `"command"` at that executable and leave `"args"` as `[]`.
+
+```json
+{
+  "mcpServers": {
+    "aseprite": {
+      "command": "C:/Tools/aseprite-mcp/aseprite-mcp-windows-x64.exe",
+      "args": [],
+      "env": {
+        "ASEPRITE_PATH": "<ASEPRITE>"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Alternative install — npm (when published)
+
+When the package `@steper158x/aseprite_mcp` is available on npm, you can use:
+
+```bash
+npx -y @steper158x/aseprite_mcp setup --cursor
+```
+
+And this MCP entry:
+
+```json
+{
+  "mcpServers": {
+    "aseprite": {
+      "command": "npx",
+      "args": ["-y", "@steper158x/aseprite_mcp"],
+      "env": {
+        "ASEPRITE_PATH": "<ASEPRITE>"
+      }
+    }
+  }
+}
+```
+
+Until then, use **Part 1–6** (Node + project folder) or a release binary.
 
 ---
 
 ## Troubleshooting
 
-- **"bun is not recognized" after installing Bun:** Close PowerShell/Terminal completely and open a fresh one. In AI Client JSON configs, use the full path to `bun.exe` (found via `where.exe bun` on Windows or `which bun` on macOS/Linux).
-- **Port `7777` conflict:** Running two AI clients at once (e.g., Antigravity + Claude Desktop) causes the second server to hit `EADDRINUSE`. It stays alive without crashing and reports the port conflict on tool calls. Close one client or set a custom `ASEPRITE_MCP_PORT`.
-- **Aseprite says "Disconnected" or extension missing:** Check **Edit > Preferences > Extensions** to confirm **Aseprite MCP Bridge** is checked, restart Aseprite, or click **File > MCP Bridge...** and click **Connect** while an AI client is running.
-- **Headless latency:** Headless mode launches `Aseprite.exe -b` per call (~0.2–1 s per action), whereas Live mode executes immediately over WebSocket.
-- **`Ctrl+Z` undo behavior:**
-  - **Live mode:** Each mutating MCP tool call is one `app.transaction` (`Ctrl+Z` reverts one entire shape/pixel batch). Note that the `undo` tool calls `app.undo()`, which undoes the most recent action regardless of whether the AI or the user made it.
-  - **Headless mode:** Keeps up to 50 `.aseprite` file snapshots in `ASEPRITE_MCP_WORKDIR/history` for multi-step `undo` / `redo`.
+| Problem | What to try |
+| --- | --- |
+| `node` is not recognized | Reinstall Node.js LTS, then open a **new** terminal. On Windows, reboot once if needed. |
+| AI says it cannot find `node` | In MCP config, set `"command"` to the full path of `node.exe` (Windows: run `where.exe node` in PowerShell). |
+| Extension missing / Disconnected | **Edit → Preferences → Extensions** → enable **Aseprite MCP Bridge** → restart Aseprite → **File → MCP Bridge... → Connect** while the AI app is open. |
+| Port 7777 already in use | You may have two AI apps running this server at once. Close one, or set `"ASEPRITE_MCP_PORT": "7778"` in the MCP `env` block. |
+| Headless does nothing | Double-check `ASEPRITE_PATH` points to the real `Aseprite.exe` / `aseprite` binary, not a folder. |
+| Setup wrote the wrong folder | Run setup from inside the project folder, or pass `--command` / `--arg` yourself. Use `--print` first to preview. |
+| Preview page is blank | Start a chat that loads the MCP server, then open http://127.0.0.1:7777/ again. |
+
+---
+
+## Extra settings (optional)
+
+Add these under the `"env"` block in your MCP config only if you need them:
+
+| Name | Default | Meaning |
+| --- | --- | --- |
+| `ASEPRITE_PATH` | (empty) | Path to Aseprite for headless drawing |
+| `ASEPRITE_MODE` | `auto` | `auto`, `live`, or `headless` |
+| `ASEPRITE_MCP_PORT` | `7777` | Preview and bridge port |
+| `ASEPRITE_MCP_OPEN_PREVIEW` | `0` | Set `1` to open the preview page when the server starts |
+| `ASEPRITE_MCP_ALLOW_LUA` | `0` | Set `1` to allow the advanced `run_lua` tool |
+
+---
+
+## Examples of what this can make
+
+| Animated Sprite (32×32, 4 Frames) | Animated Cozy Piano Room (96×96, 6 Layers, 4 Frames) |
+| :---: | :---: |
+| ![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif) | ![Animated Cozy Isometric Piano Room created live via Aseprite MCP](docs/demo-piano-room.gif) |
+| 4-frame smiling orange tabby | 4-frame isometric piano room with layers |
+
+| 1. Room shell | 2. Window & decor | 3. Piano & bench | 4. Pianist | 5. Sunlight |
+| :---: | :---: | :---: | :---: | :---: |
+| ![Step 1](docs/layers/01-room-shell.png) | ![Step 2](docs/layers/02-window-decor.png) | ![Step 3](docs/layers/03-piano-bench.png) | ![Step 4](docs/layers/04-pianist.png) | ![Step 5](docs/layers/05-sunlight.png) |
+
+---
+
+## For developers
+
+```text
+AI Client ──(stdio MCP)──► Node/Bun server
+                             ├─ Live  → WebSocket → Aseprite extension
+                             ├─ Headless → Aseprite -b --script
+                             └─ Web Preview on :7777
+```
+
+Useful commands from the project folder:
+
+| Command | Purpose |
+| --- | --- |
+| `npm run build` | Build `dist/bin.js` + extension |
+| `npm run start:node` | Run the MCP server with Node |
+| `npm test` | Unit tests (requires Bun) |
+| `node dist/bin.js setup --help` | Setup wizard options |
+| `node dist/bin.js install-plugin` | Install extension into Aseprite |
+| `node dist/bin.js package-plugin` | Build `.aseprite-extension` only |
+
+Bun is supported for local development (`bun install`, `bun start`, `bun test`) but **end users only need Node.js** for the steps above.

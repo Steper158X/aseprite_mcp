@@ -4,7 +4,9 @@ node_modules
 # Build / outputs
 out
 dist
+release
 *.tgz
+*.aseprite-extension
 
 # Temp files
 *.png

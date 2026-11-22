@@ -44,7 +44,7 @@ function extractText(result: { content: Array<{ type: string; text?: string }> }
 
 async function main(): Promise<void> {
   const repoRoot = resolve(import.meta.dir, "..");
-  const entry = resolve(repoRoot, "src", "index.ts");
+  const entry = resolve(repoRoot, "src", "cli-main.ts");
 
   const childEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
 
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: ["run", entry],
+    args: ["run", entry, "serve"],
     cwd: repoRoot,
     env: childEnv,
     stderr: "pipe",

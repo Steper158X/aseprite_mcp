@@ -70,7 +70,7 @@ async function main(): Promise<void> {
 
   const port = getBridgePort();
   const bridge = new Bridge();
-  bridge.start(port);
+  await bridge.start(port);
 
   if (bridge.portConflict) {
     console.error(JSON.stringify({ ok: false, error: bridge.portConflict }, null, 2));

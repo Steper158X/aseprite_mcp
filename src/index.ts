@@ -4,6 +4,7 @@ import { LiveBackend, Router } from "./backend.ts";
 import { Bridge } from "./bridge.ts";
 import { HeadlessBackend } from "./headless.ts";
 import { PreviewHub } from "./preview.ts";
+import { openUrlInBrowser } from "./process-utils.ts";
 import { getBridgePort } from "./protocol.ts";
 import { startHttpServer } from "./server.ts";
 import { registerDrawTools } from "./tools/draw.ts";
@@ -15,11 +16,11 @@ import { registerPaletteTools } from "./tools/palette.ts";
 import { registerSpriteTools } from "./tools/sprite.ts";
 import { registerStatusTools } from "./tools/status.ts";
 
-async function main(): Promise<void> {
+export async function startMcpServer(): Promise<void> {
   const port = getBridgePort();
   const bridge = new Bridge();
   const preview = new PreviewHub();
-  const serverHandle = startHttpServer({ port, bridge, preview });
+  const serverHandle = await startHttpServer({ port, bridge, preview });
 
   const live = new LiveBackend(bridge);
   const headless = new HeadlessBackend();
@@ -127,18 +128,24 @@ async function main(): Promise<void> {
   );
 
   if (process.env.ASEPRITE_MCP_OPEN_PREVIEW === "1" && !serverHandle.portConflict) {
-    try {
-      Bun.spawn(["cmd", "/c", "start", "", previewUrl], {
-        stdout: "ignore",
-        stderr: "ignore",
-      });
-    } catch {
-      // ignore browser launch failure
-    }
+    openUrlInBrowser(previewUrl);
   }
 }
 
-main().catch((err) => {
-  console.error("[aseprite-mcp] Fatal error:", err);
-  process.exit(1);
-});
+async function main(): Promise<void> {
+  await startMcpServer();
+}
+
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  (process.argv[1].endsWith("index.ts") ||
+    process.argv[1].endsWith("index.js") ||
+    process.argv[1].replace(/\\/g, "/").endsWith("/index.ts") ||
+    process.argv[1].replace(/\\/g, "/").endsWith("/index.js"));
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("[aseprite-mcp] Fatal error:", err);
+    process.exit(1);
+  });
+}

@@ -1,26 +1,51 @@
 {
-  "name": "aseprite_mcp",
+  "name": "@steper158x/aseprite_mcp",
   "version": "0.1.0",
   "description": "Local WebSocket bridge MCP server for live drawing in Aseprite",
   "type": "module",
-  "private": true,
+  "private": false,
+  "license": "MIT",
+  "bin": {
+    "aseprite-mcp": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "aseprite-plugin",
+    "README.md",
+    "README.th.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "bun run src/index.ts",
+    "start": "bun run src/cli-main.ts",
+    "start:node": "node dist/bin.js",
+    "setup": "bun run src/cli-main.ts setup",
+    "build": "bun run scripts/build.ts",
+    "build:binaries": "bun run scripts/build-binaries.ts",
+    "prepack": "bun run build",
     "test": "bun test",
-    "install-plugin": "bun run scripts/install-plugin.ts",
-    "package-plugin": "bun run scripts/package-plugin.ts",
+    "install-plugin": "bun run src/cli-main.ts install-plugin",
+    "package-plugin": "bun run src/cli-main.ts package-plugin",
     "cli": "bun run src/cli.ts",
     "smoke": "bun run scripts/mcp-smoke.ts",
     "typecheck": "bunx tsc --noEmit"
   },
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^7"
+    "@types/bun": "^1.4.5",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "typescript": "^5.8.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "ws": "^8.23.0",
     "zod": "^4.6.7"
-  }
+  },
+  "keywords": [
+    "aseprite",
+    "mcp",
+    "pixel-art",
+    "model-context-protocol"
+  ]
 }

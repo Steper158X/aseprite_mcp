@@ -1,4 +1,3 @@
-import type { ServerWebSocket } from "bun";
 import {
   type BridgeResponse,
   createRequestId,
@@ -10,8 +9,8 @@ import {
   type BridgeTransport,
   type HttpServerHandle,
   startHttpServer,
-  type WsClientData,
 } from "./server.ts";
+import type { AppWebSocket } from "./ws-types.ts";
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -35,7 +34,7 @@ export interface BridgeStatus {
 
 export class Bridge implements BridgeTransport {
   private serverHandle: HttpServerHandle | null = null;
-  private client: ServerWebSocket<WsClientData> | null = null;
+  private client: AppWebSocket | null = null;
   private helloInfo: HelloInfo | null = null;
   private listeningPort = DEFAULT_BRIDGE_PORT;
   private _portConflict: string | null = null;
@@ -79,11 +78,16 @@ export class Bridge implements BridgeTransport {
     };
   }
 
-  start(port = DEFAULT_BRIDGE_PORT): void {
-    if (this.serverHandle) return;
+  async start(port = DEFAULT_BRIDGE_PORT): Promise<void> {
+    // A prior EADDRINUSE soft-fail leaves a handle with server=null; allow retry.
+    if (this.serverHandle?.server) return;
+    if (this.serverHandle) {
+      this.serverHandle.stop();
+      this.serverHandle = null;
+    }
     this.listeningPort = port;
     this._portConflict = null;
-    this.serverHandle = startHttpServer({ port, bridge: this });
+    this.serverHandle = await startHttpServer({ port, bridge: this });
   }
 
   stop(): void {
@@ -95,9 +99,7 @@ export class Bridge implements BridgeTransport {
     if (active) {
       try {
         active.close(1001, "Server stopping");
-      } catch {
-        // ignore close errors on shutdown
-      }
+      } catch {}
     }
     if (this.serverHandle) {
       this.serverHandle.stop();
@@ -184,15 +186,13 @@ export class Bridge implements BridgeTransport {
     };
   }
 
-  attach(ws: ServerWebSocket<WsClientData>): void {
+  attach(ws: AppWebSocket): void {
     const previous = this.client;
     if (previous && previous !== ws) {
       this.rejectAllPending(new Error("Replaced by newer Aseprite connection"));
       try {
         previous.close(1000, "Replaced by newer connection");
-      } catch {
-        // ignore close errors on replaced socket
-      }
+      } catch {}
     }
 
     this.client = ws;
@@ -204,10 +204,13 @@ export class Bridge implements BridgeTransport {
     this.emitConnectionChange(true);
   }
 
-  onMessage(ws: ServerWebSocket<WsClientData>, message: string | Buffer<ArrayBuffer>): void {
+  onMessage(ws: AppWebSocket, message: string | Buffer): void {
     if (ws !== this.client) return;
 
-    const text = typeof message === "string" ? message : this.textDecoder.decode(message);
+    const text =
+      typeof message === "string"
+        ? message
+        : this.textDecoder.decode(message);
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
@@ -234,9 +237,7 @@ export class Bridge implements BridgeTransport {
       for (const listener of this.eventListeners) {
         try {
           listener(obj.event, obj);
-        } catch {
-          // ignore listener errors
-        }
+        } catch {}
       }
       return;
     }
@@ -259,7 +260,7 @@ export class Bridge implements BridgeTransport {
     }
   }
 
-  detach(ws: ServerWebSocket<WsClientData>): void {
+  detach(ws: AppWebSocket): void {
     if (this.client !== ws) return;
     this.client = null;
     this.helloInfo = null;
@@ -271,9 +272,7 @@ export class Bridge implements BridgeTransport {
     for (const listener of this.connectionListeners) {
       try {
         listener(connected);
-      } catch {
-        // ignore listener errors
-      }
+      } catch {}
     }
   }
 

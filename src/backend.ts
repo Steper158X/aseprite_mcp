@@ -2,6 +2,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Bridge } from "./bridge.ts";
+import { readFileBytes } from "./fs-utils.ts";
 import { notConnectedMessage } from "./protocol.ts";
 
 export type BackendKind = "live" | "headless";
@@ -92,7 +93,7 @@ export class LiveBackend implements Backend {
         frame?: number;
       }>("render_preview", params);
 
-      const png = await Bun.file(outPath).bytes();
+      const png = await readFileBytes(outPath);
       return {
         png,
         width: meta.width,
