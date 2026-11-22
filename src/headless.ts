@@ -200,7 +200,7 @@ export class HeadlessBackend implements Backend {
         return this.performListSprites() as T;
       }
       if (method === "set_active_sprite") {
-        return this.performSetActiveSprite() as T;
+        return (await this.performSetActiveSprite()) as T;
       }
       if (method === "save_sprite") {
         return (await this.performSaveSprite(params)) as T;
@@ -224,6 +224,8 @@ export class HeadlessBackend implements Backend {
 
         if (mutating) {
           this.clearStack(this.redoStack);
+        } else if (method === "set_active_frame") {
+          this.latestPreview = null;
         }
         if (method === "open_sprite" && typeof params.path === "string") {
           this.sourcePath = params.path;
@@ -490,14 +492,12 @@ export class HeadlessBackend implements Backend {
     };
   }
 
-  private performSetActiveSprite() {
+  private async performSetActiveSprite() {
     if (!existsSync(this.docPath)) {
       throw new Error("No active sprite — open or create one");
     }
-    return {
-      index: 1,
-      filename: this.sourcePath ?? this.docPath,
-    };
+    const res = await this.invoke("get_sprite_info", {}, { save: false, render: false });
+    return res.result;
   }
 
   private async performSaveSprite(params: Record<string, unknown>) {
@@ -516,7 +516,7 @@ export class HeadlessBackend implements Backend {
 
     const res = await this.invoke(
       "save_sprite",
-      { path: targetPath },
+      { path: targetPath, copyOnly: true },
       { save: false, render: false },
     );
 

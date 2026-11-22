@@ -7,7 +7,10 @@ import { PreviewHub } from "./preview.ts";
 import { getBridgePort } from "./protocol.ts";
 import { startHttpServer } from "./server.ts";
 import { registerDrawTools } from "./tools/draw.ts";
+import { registerFrameTools } from "./tools/frames.ts";
 import { registerInspectTools } from "./tools/inspect.ts";
+import { registerLayerTools } from "./tools/layers.ts";
+import { registerPaletteTools } from "./tools/palette.ts";
 import { registerSpriteTools } from "./tools/sprite.ts";
 import { registerStatusTools } from "./tools/status.ts";
 
@@ -87,6 +90,9 @@ async function main(): Promise<void> {
   registerStatusTools(mcp, router);
   registerSpriteTools(mcp, router);
   registerDrawTools(mcp, router);
+  registerLayerTools(mcp, router);
+  registerFrameTools(mcp, router);
+  registerPaletteTools(mcp, router);
   registerInspectTools(mcp, router);
 
   const transport = new StdioServerTransport();

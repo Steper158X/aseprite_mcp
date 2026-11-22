@@ -193,6 +193,63 @@ function util.serializeLayers(layers)
   return out
 end
 
+function util.normalizePath(p)
+  if type(p) ~= "string" then
+    return p
+  end
+  return p:gsub("/", app.fs.pathSeparator)
+end
+
+function util.colorToHex(c)
+  return string.format("#%02x%02x%02x%02x", c.red, c.green, c.blue, c.alpha)
+end
+
+local BLEND_MODES = {
+  normal = BlendMode.NORMAL,
+  multiply = BlendMode.MULTIPLY,
+  screen = BlendMode.SCREEN,
+  overlay = BlendMode.OVERLAY,
+  darken = BlendMode.DARKEN,
+  lighten = BlendMode.LIGHTEN,
+  color_dodge = BlendMode.COLOR_DODGE,
+  color_burn = BlendMode.COLOR_BURN,
+  hard_light = BlendMode.HARD_LIGHT,
+  soft_light = BlendMode.SOFT_LIGHT,
+  difference = BlendMode.DIFFERENCE,
+  exclusion = BlendMode.EXCLUSION,
+  hue = BlendMode.HSL_HUE,
+  saturation = BlendMode.HSL_SATURATION,
+  color = BlendMode.HSL_COLOR,
+  luminosity = BlendMode.HSL_LUMINOSITY,
+  addition = BlendMode.ADDITION,
+  subtract = BlendMode.SUBTRACT,
+  divide = BlendMode.DIVIDE,
+}
+
+function util.parseBlendMode(name)
+  if type(name) ~= "string" then
+    error("blendMode must be a string")
+  end
+  local bm = BLEND_MODES[name:lower()]
+  if not bm then
+    error("Unknown blendMode: " .. name)
+  end
+  return bm
+end
+
+function util.copyLayerCelsToFrame(sprite, layers, srcFrameNum, dstFrame)
+  for _, l in ipairs(layers) do
+    if l.isGroup then
+      util.copyLayerCelsToFrame(sprite, l.layers, srcFrameNum, dstFrame)
+    elseif not l.isTilemap then
+      local cel = l:cel(srcFrameNum)
+      if cel then
+        sprite:newCel(l, dstFrame, Image(cel.image), cel.position)
+      end
+    end
+  end
+end
+
 function util.refresh()
   if app.isUIAvailable then
     app.refresh()

@@ -306,5 +306,357 @@ return function(util)
     }
   end
 
+  function handlers.list_sprites(_params)
+    local active = app.activeSprite or app.sprite
+    local sprites = {}
+    for i, s in ipairs(app.sprites) do
+      table.insert(sprites, {
+        index = i,
+        filename = s.filename,
+        width = s.width,
+        height = s.height,
+        colorMode = util.colorModeName(s.colorMode),
+        active = (s == active),
+      })
+    end
+    return { sprites = sprites }
+  end
+
+  function handlers.set_active_sprite(params)
+    if not params or (params.index == nil and params.filename == nil) then
+      error("Provide index (1-based) or filename")
+    end
+    local target = nil
+    if params.index ~= nil then
+      local idx = math.floor(params.index)
+      if idx < 1 or idx > #app.sprites then
+        error("Sprite index out of range: " .. tostring(idx))
+      end
+      target = app.sprites[idx]
+    elseif params.filename ~= nil then
+      local needle = tostring(params.filename)
+      for _, s in ipairs(app.sprites) do
+        if s.filename == needle or app.fs.fileName(s.filename) == needle then
+          target = s
+          break
+        end
+      end
+      if not target then
+        error("Sprite not found: " .. needle)
+      end
+    end
+    app.activeSprite = target
+    util.refresh()
+    return handlers.get_sprite_info({})
+  end
+
+  function handlers.open_sprite(params)
+    if not params or type(params.path) ~= "string" or params.path == "" then
+      error("path is required")
+    end
+    local norm = util.normalizePath(params.path)
+    if not app.fs.isFile(norm) then
+      error("File not found: " .. norm)
+    end
+    local sprite = app.open(norm)
+    if not sprite then
+      error("Failed to open sprite: " .. norm)
+    end
+    app.activeSprite = sprite
+    util.refresh()
+    return handlers.get_sprite_info({})
+  end
+
+  function handlers.save_sprite(params)
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local rawPath = params and params.path or nil
+    local targetPath = (type(rawPath) == "string" and rawPath ~= "") and util.normalizePath(rawPath) or sprite.filename
+    if type(targetPath) ~= "string" or targetPath == "" or targetPath == "Sprite" then
+      error("No file path specified for unsaved sprite")
+    end
+    local dir = app.fs.filePath(targetPath)
+    if dir and dir ~= "" then
+      pcall(app.fs.makeAllDirectories, dir)
+    end
+    local ext = app.fs.fileExtension(targetPath):lower()
+    local isAse = (ext == "aseprite" or ext == "ase")
+    if (params and params.copyOnly) or not isAse then
+      local ok = sprite:saveCopyAs(targetPath)
+      if not ok and not app.fs.isFile(targetPath) then
+        error("Failed to save copy to: " .. targetPath)
+      end
+    else
+      local ok = sprite:saveAs(targetPath)
+      if not ok and not app.fs.isFile(targetPath) then
+        error("Failed to save sprite to: " .. targetPath)
+      end
+    end
+    return {
+      path = targetPath,
+      saved = true,
+    }
+  end
+
+  function handlers.add_layer(params)
+    if not params or type(params.name) ~= "string" or params.name == "" then
+      error("Layer name is required")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local layer
+    app.transaction("MCP: add_layer", function()
+      if params.group then
+        layer = sprite:newGroup()
+      else
+        layer = sprite:newLayer()
+      end
+      layer.name = params.name
+      app.layer = layer
+    end)
+    util.refresh()
+    return {
+      name = layer.name,
+      isGroup = layer.isGroup,
+      layers = util.serializeLayers(sprite.layers),
+    }
+  end
+
+  function handlers.delete_layer(params)
+    if not params or type(params.name) ~= "string" or params.name == "" then
+      error("Layer name is required")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local layer = util.findLayerByName(sprite.layers, params.name)
+    if not layer then
+      error("Layer not found: " .. params.name)
+    end
+    if layer.parent == sprite and #sprite.layers <= 1 then
+      error("Cannot delete the last remaining top-level layer")
+    end
+    app.transaction("MCP: delete_layer", function()
+      sprite:deleteLayer(layer)
+    end)
+    util.refresh()
+    return {
+      deleted = params.name,
+      activeLayer = app.layer and app.layer.name or nil,
+      layers = util.serializeLayers(sprite.layers),
+    }
+  end
+
+  function handlers.set_active_layer(params)
+    if not params or type(params.name) ~= "string" or params.name == "" then
+      error("Layer name is required")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local layer = util.findLayerByName(sprite.layers, params.name)
+    if not layer then
+      error("Layer not found: " .. params.name)
+    end
+    app.layer = layer
+    util.refresh()
+    return {
+      activeLayer = layer.name,
+      isGroup = layer.isGroup,
+    }
+  end
+
+  function handlers.set_layer_props(params)
+    if not params or type(params.name) ~= "string" or params.name == "" then
+      error("Layer name is required")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local layer = util.findLayerByName(sprite.layers, params.name)
+    if not layer then
+      error("Layer not found: " .. params.name)
+    end
+
+    app.transaction("MCP: set_layer_props", function()
+      if params.newName ~= nil then
+        layer.name = tostring(params.newName)
+      end
+      if params.visible ~= nil then
+        layer.isVisible = (params.visible == true)
+      end
+      if params.opacity ~= nil then
+        local op = math.floor(params.opacity)
+        if op < 0 then op = 0 elseif op > 255 then op = 255 end
+        layer.opacity = op
+      end
+      if params.blendMode ~= nil then
+        if layer.isGroup then
+          error("Group layers do not support blendMode")
+        end
+        layer.blendMode = util.parseBlendMode(params.blendMode)
+      end
+    end)
+    util.refresh()
+    return {
+      name = layer.name,
+      visible = layer.isVisible,
+      opacity = layer.opacity,
+      isGroup = layer.isGroup,
+    }
+  end
+
+  function handlers.add_frame(params)
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local afterIdx
+    if params and params.after ~= nil then
+      afterIdx = math.floor(params.after)
+      if afterIdx < 1 or afterIdx > #sprite.frames then
+        error("after frame out of range: " .. tostring(afterIdx))
+      end
+    else
+      afterIdx = (app.frame and app.frame.frameNumber) or #sprite.frames
+    end
+    local shouldCopy = true
+    if params and params.copy ~= nil then
+      shouldCopy = (params.copy == true)
+    end
+
+    local newFrame
+    app.transaction("MCP: add_frame", function()
+      local srcDuration = sprite.frames[afterIdx].duration
+      newFrame = sprite:newEmptyFrame(afterIdx + 1)
+      newFrame.duration = srcDuration
+      if shouldCopy then
+        util.copyLayerCelsToFrame(sprite, sprite.layers, afterIdx, newFrame)
+      end
+      app.frame = newFrame
+    end)
+    util.refresh()
+    return {
+      frameNumber = newFrame.frameNumber,
+      framesCount = #sprite.frames,
+      copied = shouldCopy,
+    }
+  end
+
+  function handlers.delete_frame(params)
+    if not params or type(params.frame) ~= "number" then
+      error("frame (1-based integer) is required")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    if #sprite.frames <= 1 then
+      error("Cannot delete the last remaining frame")
+    end
+    local deletedNum = math.floor(params.frame)
+    local f = util.resolveFrame(sprite, params.frame)
+    app.transaction("MCP: delete_frame", function()
+      sprite:deleteFrame(f)
+    end)
+    if not app.frame or app.frame.frameNumber < 1 or app.frame.frameNumber > #sprite.frames then
+      app.frame = sprite.frames[math.min(deletedNum, #sprite.frames)]
+    end
+    util.refresh()
+    return {
+      deletedFrame = deletedNum,
+      framesCount = #sprite.frames,
+      activeFrame = app.frame and app.frame.frameNumber or 1,
+    }
+  end
+
+  function handlers.set_active_frame(params)
+    if not params or type(params.frame) ~= "number" then
+      error("frame (1-based integer) is required")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local f = util.resolveFrame(sprite, params.frame)
+    app.frame = f
+    util.refresh()
+    return {
+      activeFrame = f.frameNumber,
+      framesCount = #sprite.frames,
+    }
+  end
+
+  function handlers.set_frame_duration(params)
+    if not params or type(params.frame) ~= "number" or type(params.ms) ~= "number" then
+      error("frame and ms are required")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local f = util.resolveFrame(sprite, params.frame)
+    local ms = math.max(1, math.floor(params.ms))
+    app.transaction("MCP: set_frame_duration", function()
+      f.duration = ms / 1000.0
+    end)
+    util.refresh()
+    return {
+      frame = f.frameNumber,
+      durationMs = math.floor(f.duration * 1000 + 0.5),
+    }
+  end
+
+  function handlers.get_palette(_params)
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local pal = sprite.palettes[1]
+    local colors = {}
+    if pal then
+      for i = 0, #pal - 1 do
+        table.insert(colors, util.colorToHex(pal:getColor(i)))
+      end
+    end
+    return {
+      size = #colors,
+      colors = colors,
+    }
+  end
+
+  function handlers.set_palette(params)
+    if not params or not util.isTableLike(params.colors) then
+      error("colors array is required")
+    end
+    local count = #params.colors
+    if count < 1 or count > 256 then
+      error("Palette must have between 1 and 256 colors")
+    end
+    local sprite = app.activeSprite or app.sprite
+    if not sprite then
+      error("No active sprite — open or create one")
+    end
+    local pal = Palette(count)
+    for i, hex in ipairs(params.colors) do
+      local c = util.parseColor(hex)
+      pal:setColor(i - 1, Color { r = c.r, g = c.g, b = c.b, a = c.a })
+    end
+    app.transaction("MCP: set_palette", function()
+      sprite:setPalette(pal)
+    end)
+    util.refresh()
+    return {
+      size = #sprite.palettes[1],
+    }
+  end
+
   return handlers
 end
