@@ -59,13 +59,7 @@ writeFileSync(binPath, withShebang, "utf8");
 mkdirSync(previewDest, { recursive: true });
 cpSync(join(previewSrc, "index.html"), join(previewDest, "index.html"));
 
-try {
-  const packed = packagePlugin({ distDir });
-  console.log(`Packaged extension: ${packed.extPath}`);
-} catch (err) {
-  console.warn(
-    `Warning: could not package extension: ${err instanceof Error ? err.message : String(err)}`,
-  );
-}
+const packed = packagePlugin({ distDir });
+console.log(`Packaged extension: ${packed.extPath}`);
 
 console.log(`Built Node entry: ${binPath}`);

@@ -41,7 +41,9 @@ jobs:
             fi
           done
           cd ../..
-          cp dist/aseprite-mcp-bridge.aseprite-extension release/ 2>/dev/null || true
+          cp dist/aseprite-mcp-bridge.aseprite-extension release/
+          unzip -t release/aseprite-mcp-bridge.aseprite-extension
+          unzip -t dist/binaries/aseprite-mcp-bridge.aseprite-extension
           ls -la release
 
       - name: Upload release

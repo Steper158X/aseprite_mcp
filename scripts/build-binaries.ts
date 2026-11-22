@@ -40,14 +40,8 @@ cpSync(join(root, "aseprite-plugin"), join(assetsDir, "aseprite-plugin"), { recu
 mkdirSync(join(assetsDir, "preview"), { recursive: true });
 cpSync(join(root, "src", "preview", "index.html"), join(assetsDir, "preview", "index.html"));
 
-try {
-  const packed = packagePlugin({ distDir: assetsDir });
-  console.log(`Packaged extension into assets: ${packed.extPath}`);
-} catch (err) {
-  console.warn(
-    `Warning: could not package extension: ${err instanceof Error ? err.message : String(err)}`,
-  );
-}
+const packed = packagePlugin({ distDir: assetsDir });
+console.log(`Packaged extension into assets: ${packed.extPath}`);
 
 // Copy plugin + preview next to the binaries so packageRoot(execDir) works without ASEPRITE_MCP_ROOT.
 cpSync(join(assetsDir, "aseprite-plugin"), join(outRoot, "aseprite-plugin"), { recursive: true });
