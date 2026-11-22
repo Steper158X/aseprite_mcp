@@ -1,5 +1,13 @@
 import type { Pixel } from "./protocol.ts";
 
+export const MAX_RASTER_PIXELS = 20000;
+
+function assertPixelBudget(estimate: number, label: string): void {
+  if (estimate > MAX_RASTER_PIXELS) {
+    throw new Error(`${label} would touch ~${estimate} pixels (max ${MAX_RASTER_PIXELS})`);
+  }
+}
+
 function addPixel(map: Map<string, Pixel>, x: number, y: number, color: string): void {
   map.set(`${x},${y}`, { x, y, color });
 }
@@ -37,6 +45,9 @@ export function rasterizeLine(
   let cy = Math.round(y1);
   const tx = Math.round(x2);
   const ty = Math.round(y2);
+  const brush = Math.max(1, Math.round(size));
+  const steps = Math.max(Math.abs(tx - cx), Math.abs(ty - cy)) + 1;
+  assertPixelBudget(steps * brush * brush, "Line");
 
   const dx = Math.abs(tx - cx);
   const sx = cx < tx ? 1 : -1;
@@ -46,7 +57,7 @@ export function rasterizeLine(
 
   const pixels = new Map<string, Pixel>();
   while (true) {
-    stampBrush(pixels, cx, cy, size, color);
+    stampBrush(pixels, cx, cy, brush, color);
     if (cx === tx && cy === ty) break;
     const e2 = 2 * err;
     if (e2 >= dy) {
@@ -75,6 +86,9 @@ export function rasterizeRect(
   const w = Math.round(width);
   const h = Math.round(height);
   if (w <= 0 || h <= 0) return [];
+
+  const estimate = filled ? w * h : 2 * w + 2 * Math.max(0, h - 2);
+  assertPixelBudget(estimate, "Rectangle");
 
   const pixels = new Map<string, Pixel>();
   const x1 = x0 + w - 1;
@@ -120,6 +134,9 @@ export function rasterizeEllipse(
   const w = Math.round(width);
   const h = Math.round(height);
   if (w <= 0 || h <= 0) return [];
+
+  // Bounding-box upper bound before allocation.
+  assertPixelBudget(w * h, "Ellipse");
 
   if (w === 1 || h === 1) {
     return rasterizeRect(x0, y0, w, h, color, true);
@@ -190,6 +207,12 @@ export function rasterizePixelArt(
 ): Pixel[] {
   const x0 = Math.round(x);
   const y0 = Math.round(y);
+  let estimate = 0;
+  for (const row of rows) {
+    estimate += [...row].filter((ch) => ch !== transparentChar).length;
+  }
+  assertPixelBudget(estimate, "Pixel art");
+
   const pixels: Pixel[] = [];
 
   for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {

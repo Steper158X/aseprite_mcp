@@ -9,6 +9,7 @@ export const hexColorSchema = z
 export const layerFrameShape = {
   layer: z
     .string()
+    .min(1)
     .optional()
     .describe("Target layer name (optional; defaults to active layer)"),
   frame: z
@@ -24,7 +25,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function jsonOk(mode: BackendKind | "none", data: unknown): CallToolResult {
-  const payload = isRecord(data) ? { mode, ...data } : { mode, result: data };
+  const payload = isRecord(data) ? { ...data, mode } : { mode, result: data };
   return {
     content: [
       {

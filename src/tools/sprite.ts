@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Router } from "../backend.ts";
-import { asArray } from "../protocol.ts";
+import { asArray, assertPathAllowed, normalizeLayerTree } from "../protocol.ts";
 import { jsonOk, runBackendTool, toolError } from "./common.ts";
 
 export function registerSpriteTools(server: McpServer, router: Router): void {
@@ -16,7 +16,7 @@ export function registerSpriteTools(server: McpServer, router: Router): void {
         const { mode, result } = await router.call<Record<string, unknown>>("get_sprite_info", {});
         return jsonOk(mode, {
           ...result,
-          layers: asArray(result.layers),
+          layers: normalizeLayerTree(result.layers),
           frames: asArray(result.frames),
         });
       } catch (err) {
@@ -56,6 +56,9 @@ export function registerSpriteTools(server: McpServer, router: Router): void {
     async ({ index, filename }) => {
       if (index === undefined && filename === undefined) {
         return toolError("Provide either index or filename");
+      }
+      if (index !== undefined && filename !== undefined) {
+        return toolError("Provide only one of index or filename");
       }
       return runBackendTool(
         router,
@@ -101,13 +104,19 @@ export function registerSpriteTools(server: McpServer, router: Router): void {
         path: z.string().min(1).describe("Absolute or relative file path to open"),
       },
     },
-    async ({ path }) =>
-      runBackendTool(
-        router,
-        "open_sprite",
-        { path },
-        { mutating: true, toolName: "open_sprite" },
-      ),
+    async ({ path }) => {
+      try {
+        const allowed = assertPathAllowed(path);
+        return await runBackendTool(
+          router,
+          "open_sprite",
+          { path: allowed },
+          { mutating: true, toolName: "open_sprite" },
+        );
+      } catch (err) {
+        return toolError(err);
+      }
+    },
   );
 
   server.registerTool(
@@ -123,7 +132,17 @@ export function registerSpriteTools(server: McpServer, router: Router): void {
           .describe("Optional destination path (.aseprite, .png, .gif, etc.)"),
       },
     },
-    async ({ path }) =>
-      runBackendTool(router, "save_sprite", { ...(path ? { path } : {}) }),
+    async ({ path }) => {
+      try {
+        const params =
+          path !== undefined ? { path: assertPathAllowed(path) } : {};
+        return await runBackendTool(router, "save_sprite", params, {
+          mutating: true,
+          toolName: "save_sprite",
+        });
+      } catch (err) {
+        return toolError(err);
+      }
+    },
   );
 }

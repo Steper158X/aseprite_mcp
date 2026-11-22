@@ -9,7 +9,6 @@ local manualDisconnect = false
 local handlers = nil
 local pluginRef = nil
 local debounceTimer = nil
-local reconnectTimer = nil
 local siteListenerId = nil
 local watchedSprite = nil
 local spriteListenerId = nil
@@ -23,6 +22,12 @@ local function updateDialog()
     bridgeDialog:modify { id = "status", text = connected and "Connected" or "Disconnected" }
     bridgeDialog:modify { id = "btn_connect", visible = (not connected) }
     bridgeDialog:modify { id = "btn_disconnect", visible = connected }
+    if pluginRef then
+      bridgeDialog:modify {
+        id = "allow_lua",
+        selected = (pluginRef.preferences.allowLua == true),
+      }
+    end
   end)
 end
 
@@ -77,11 +82,40 @@ local function attachSpriteWatcher()
   end
 end
 
+local function normalizeBridgeUrl(url)
+  if type(url) ~= "string" then
+    return DEFAULT_URL
+  end
+  local trimmed = url:match("^%s*(.-)%s*$") or ""
+  if trimmed == "" or trimmed == LEGACY_DEFAULT_URL or trimmed == (LEGACY_DEFAULT_URL .. "/") then
+    return DEFAULT_URL
+  end
+
+  -- ws://host:port or ws://host:port/ → append /aseprite
+  local schemeHost = trimmed:match("^(wss?://[^/]+)/?$")
+  if schemeHost then
+    return schemeHost .. "/aseprite"
+  end
+
+  return trimmed
+end
+
 local function getBridgeUrl(plugin)
-  local url = plugin.preferences.url
-  if type(url) ~= "string" or url == "" or url == LEGACY_DEFAULT_URL or url == (LEGACY_DEFAULT_URL .. "/") then
-    url = DEFAULT_URL
+  local url = normalizeBridgeUrl(plugin.preferences.url)
+  if plugin.preferences.url ~= url then
     plugin.preferences.url = url
+  end
+
+  local token = plugin.preferences.token
+  if type(token) == "string" then
+    token = token:match("^%s*(.-)%s*$") or ""
+  else
+    token = ""
+  end
+
+  if token ~= "" and not url:find("[?&]token=", 1, false) then
+    local sep = url:find("?", 1, true) and "&" or "?"
+    url = url .. sep .. "token=" .. token
   end
   return url
 end
@@ -126,11 +160,6 @@ end
 local function disconnectBridge(isManual)
   if isManual then
     manualDisconnect = true
-    if reconnectTimer then
-      pcall(function()
-        reconnectTimer:stop()
-      end)
-    end
   end
   connected = false
   if debounceTimer then
@@ -153,20 +182,28 @@ local function connectBridge(plugin)
   disconnectBridge(false)
   local url = getBridgeUrl(plugin)
 
-  ws = WebSocket {
+  -- Capture this socket so a stale CLOSE from a replaced connection cannot
+  -- clear `connected` / fight the active socket. Rely on Aseprite WebSocket
+  -- auto-reconnect only (no second reconnect timer).
+  local thisWs
+  thisWs = WebSocket {
     url = url,
     deflate = false,
     minreconnectwait = 1,
     maxreconnectwait = 3,
     onreceive = function(mt, data)
+      if ws ~= thisWs then
+        return
+      end
       if mt == WebSocketMessageType.OPEN then
+        if manualDisconnect then
+          pcall(function()
+            thisWs:close()
+          end)
+          return
+        end
         connected = true
         updateDialog()
-        if reconnectTimer then
-          pcall(function()
-            reconnectTimer:stop()
-          end)
-        end
         sendJson({
           type = "hello",
           plugin = PLUGIN_VERSION,
@@ -187,15 +224,11 @@ local function connectBridge(plugin)
       elseif mt == WebSocketMessageType.CLOSE then
         connected = false
         updateDialog()
-        if not manualDisconnect and reconnectTimer then
-          pcall(function()
-            reconnectTimer:start()
-          end)
-        end
       end
     end,
   }
 
+  ws = thisWs
   ws:connect()
 end
 
@@ -223,7 +256,21 @@ local function openBridgeDialog(plugin)
     :entry {
       id = "url",
       label = "URL:",
-      text = getBridgeUrl(plugin),
+      text = normalizeBridgeUrl(plugin.preferences.url),
+    }
+    :entry {
+      id = "token",
+      label = "Token:",
+      text = type(plugin.preferences.token) == "string" and plugin.preferences.token or "",
+    }
+    :check {
+      id = "allow_lua",
+      text = "Allow run_lua",
+      selected = (plugin.preferences.allowLua == true),
+      onclick = function()
+        local selected = dlg.data and dlg.data.allow_lua
+        plugin.preferences.allowLua = (selected == true)
+      end,
     }
     :label {
       id = "version",
@@ -240,9 +287,14 @@ local function openBridgeDialog(plugin)
         if type(rawUrl) == "string" then
           local trimmed = rawUrl:match("^%s*(.-)%s*$")
           if trimmed and trimmed ~= "" then
-            plugin.preferences.url = trimmed
+            plugin.preferences.url = normalizeBridgeUrl(trimmed)
           end
         end
+        local rawToken = dlg.data and dlg.data.token
+        if type(rawToken) == "string" then
+          plugin.preferences.token = rawToken:match("^%s*(.-)%s*$") or ""
+        end
+        plugin.preferences.allowLua = (dlg.data and dlg.data.allow_lua == true)
         connectBridge(plugin)
         updateDialog()
       end,
@@ -273,7 +325,17 @@ end
 
 function init(plugin)
   pluginRef = plugin
+  if plugin.preferences.allowLua == nil then
+    plugin.preferences.allowLua = false
+  end
+  if plugin.preferences.token == nil then
+    plugin.preferences.token = ""
+  end
+
   local util = dofile(app.fs.joinPath(plugin.path, "lib", "util.lua"))
+  util.isLuaAllowed = function()
+    return pluginRef and pluginRef.preferences.allowLua == true
+  end
   local buildHandlers = dofile(app.fs.joinPath(plugin.path, "lib", "handlers.lua"))
   handlers = buildHandlers(util)
 
@@ -300,25 +362,6 @@ function init(plugin)
     end)
     if okTimer then
       debounceTimer = timerOrErr
-    end
-
-    local okReconn, reconnOrErr = pcall(function()
-      return Timer {
-        interval = 2.0,
-        ontick = function()
-          if reconnectTimer then
-            pcall(function()
-              reconnectTimer:stop()
-            end)
-          end
-          if not manualDisconnect and not connected and pluginRef then
-            connectBridge(pluginRef)
-          end
-        end,
-      }
-    end)
-    if okReconn then
-      reconnectTimer = reconnOrErr
     end
 
     local okSite, lid = pcall(function()
@@ -349,12 +392,6 @@ function exit(_plugin)
       bridgeDialog:close()
     end)
     bridgeDialog = nil
-  end
-  if reconnectTimer then
-    pcall(function()
-      reconnectTimer:stop()
-    end)
-    reconnectTimer = nil
   end
   if debounceTimer then
     pcall(function()

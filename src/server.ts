@@ -1,4 +1,5 @@
 import type { Server, ServerWebSocket } from "bun";
+import { getBridgeToken } from "./protocol.ts";
 
 export type WsClientData = { kind: "aseprite" } | { kind: "preview" };
 
@@ -21,6 +22,7 @@ export interface StartHttpServerOptions {
   port: number;
   bridge: BridgeTransport;
   preview?: PreviewTransport;
+  token?: string | null;
 }
 
 export interface HttpServerHandle {
@@ -32,6 +34,7 @@ export interface HttpServerHandle {
 
 export function startHttpServer(options: StartHttpServerOptions): HttpServerHandle {
   const { port, bridge, preview } = options;
+  const requiredToken = options.token === undefined ? getBridgeToken() : options.token;
 
   try {
     const server = Bun.serve<WsClientData>({
@@ -41,6 +44,12 @@ export function startHttpServer(options: StartHttpServerOptions): HttpServerHand
         const url = new URL(req.url);
 
         if (url.pathname === "/aseprite") {
+          if (requiredToken) {
+            const provided = url.searchParams.get("token");
+            if (provided !== requiredToken) {
+              return new Response("Unauthorized", { status: 401 });
+            }
+          }
           if (srv.upgrade(req, { data: { kind: "aseprite" } })) {
             return;
           }

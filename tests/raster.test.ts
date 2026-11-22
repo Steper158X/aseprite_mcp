@@ -111,3 +111,14 @@ describe("rasterizePixelArt", () => {
     ).toThrow(/Unknown palette character "Z"/);
   });
 });
+
+describe("raster pixel budget", () => {
+  test("rejects oversized filled rect before allocating", () => {
+    expect(() => rasterizeRect(0, 0, 500, 500, "#ffffff", true)).toThrow(/max 20000/);
+  });
+
+  test("rejects oversized line before allocating", () => {
+    expect(() => rasterizeLine(0, 0, 100000, 0, "#ffffff", 1)).toThrow(/max 20000/);
+  });
+});
+

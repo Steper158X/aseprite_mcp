@@ -28,6 +28,11 @@ local okMain, errMain = pcall(function()
 
   local req = json.decode(raw)
   local util = dofile(app.fs.joinPath(libDir, "util.lua"))
+  -- Headless is only invoked by the MCP server process; Lua is allowed when that
+  -- process chooses to call run_lua (server already gates via ASEPRITE_MCP_ALLOW_LUA).
+  util.isLuaAllowed = function()
+    return true
+  end
   local buildHandlers = dofile(app.fs.joinPath(libDir, "handlers.lua"))
   local handlers = buildHandlers(util)
 

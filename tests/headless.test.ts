@@ -166,7 +166,61 @@ describe("HeadlessBackend", () => {
     await backend.call("undo", {}, { mutating: true });
     expect(existsSync(backend.getDocPath())).toBe(false);
   });
+
+  test("failed mutating call after disk write restores prior document", async () => {
+    const workdir = makeWorkdir();
+    const runner: HeadlessRunner = async (req) => {
+      if (req.method === "new_sprite") {
+        writeFileSync(req.doc, "v1");
+        if (req.render && req.previewPath) writeFileSync(req.previewPath, PNG_A);
+        return {
+          ok: true,
+          result: { ok: true },
+          previewMeta: { width: 8, height: 8 },
+          state: { hasSprite: true, layer: "Layer 1", frame: 1 },
+        };
+      }
+      if (req.method === "draw_pixels") {
+        writeFileSync(req.doc, "corrupted");
+        return { ok: false, error: "preview failed after save" };
+      }
+      return { ok: true, result: {}, state: req.state };
+    };
+
+    const backend = new HeadlessBackend({ workdir, runner });
+    await backend.call("new_sprite", {}, { mutating: true });
+    await expect(backend.call("draw_pixels", {}, { mutating: true })).rejects.toThrow(
+      /preview failed/,
+    );
+    expect(await Bun.file(backend.getDocPath()).text()).toBe("v1");
+    expect(backend.getState().layer).toBe("Layer 1");
+  });
+
+  test("keeps prior layer when response omits layer key", async () => {
+    const workdir = makeWorkdir();
+    const runner: HeadlessRunner = async (req) => {
+      if (req.method === "new_sprite") {
+        writeFileSync(req.doc, "v1");
+        return {
+          ok: true,
+          result: {},
+          state: { hasSprite: true, layer: "Layer 1", frame: 1 },
+        };
+      }
+      return {
+        ok: true,
+        result: { pong: true },
+        state: { hasSprite: true, frame: 2 },
+      };
+    };
+
+    const backend = new HeadlessBackend({ workdir, runner });
+    await backend.call("new_sprite", {}, { mutating: true });
+    await backend.call("ping", {});
+    expect(backend.getState()).toEqual({ hasSprite: true, layer: "Layer 1", frame: 2 });
+  });
 });
+
 
 describe("Router mode selection", () => {
   test("selects live vs headless according to auto, live, and headless modes", () => {

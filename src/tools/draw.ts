@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Router } from "../backend.ts";
 import {
+  MAX_RASTER_PIXELS,
   rasterizeEllipse,
   rasterizeLine,
   rasterizePixelArt,
@@ -9,7 +10,8 @@ import {
 } from "../raster.ts";
 import { hexColorSchema, layerFrameShape, runBackendTool, toolError } from "./common.ts";
 
-const MAX_PIXELS = 20000;
+const MAX_PIXELS = MAX_RASTER_PIXELS;
+const MAX_DIM = 4096;
 
 export function registerDrawTools(server: McpServer, router: Router): void {
   server.registerTool(
@@ -50,14 +52,16 @@ export function registerDrawTools(server: McpServer, router: Router): void {
         x: z.number().int().describe("Top-left 0-based X offset on the canvas"),
         y: z.number().int().describe("Top-left 0-based Y offset on the canvas"),
         rows: z
-          .array(z.string())
+          .array(z.string().max(MAX_DIM))
           .min(1)
+          .max(MAX_DIM)
           .describe("Strings representing each pixel row from top to bottom"),
         palette: z
-          .record(z.string().min(1), hexColorSchema)
+          .record(z.string().length(1), hexColorSchema)
           .describe("Map from single character to #RRGGBB or #RRGGBBAA hex color"),
         transparentChar: z
           .string()
+          .length(1)
           .optional()
           .describe("Character treated as transparent/skipped (default '.')"),
         ...layerFrameShape,
@@ -66,9 +70,6 @@ export function registerDrawTools(server: McpServer, router: Router): void {
     async ({ x, y, rows, palette, transparentChar, layer, frame }) => {
       try {
         const pixels = rasterizePixelArt(x, y, rows, palette, transparentChar ?? ".");
-        if (pixels.length > MAX_PIXELS) {
-          throw new Error(`Pixel art expands to ${pixels.length} pixels (max ${MAX_PIXELS})`);
-        }
         return await runBackendTool(
           router,
           "draw_pixels",
@@ -105,9 +106,6 @@ export function registerDrawTools(server: McpServer, router: Router): void {
     async ({ x1, y1, x2, y2, color, size, layer, frame }) => {
       try {
         const pixels = rasterizeLine(x1, y1, x2, y2, color, size ?? 1);
-        if (pixels.length > MAX_PIXELS) {
-          throw new Error(`Line expands to ${pixels.length} pixels (max ${MAX_PIXELS})`);
-        }
         return await runBackendTool(
           router,
           "draw_pixels",
@@ -128,8 +126,8 @@ export function registerDrawTools(server: McpServer, router: Router): void {
       inputSchema: {
         x: z.number().int().describe("Top-left X (0-based)"),
         y: z.number().int().describe("Top-left Y (0-based)"),
-        width: z.number().int().min(1).describe("Rectangle width in pixels"),
-        height: z.number().int().min(1).describe("Rectangle height in pixels"),
+        width: z.number().int().min(1).max(MAX_DIM).describe("Rectangle width in pixels"),
+        height: z.number().int().min(1).max(MAX_DIM).describe("Rectangle height in pixels"),
         color: hexColorSchema.describe("Hex color (#RRGGBB or #RRGGBBAA)"),
         filled: z.boolean().optional().describe("Fill interior (default false)"),
         ...layerFrameShape,
@@ -138,9 +136,6 @@ export function registerDrawTools(server: McpServer, router: Router): void {
     async ({ x, y, width, height, color, filled, layer, frame }) => {
       try {
         const pixels = rasterizeRect(x, y, width, height, color, filled ?? false);
-        if (pixels.length > MAX_PIXELS) {
-          throw new Error(`Rectangle expands to ${pixels.length} pixels (max ${MAX_PIXELS})`);
-        }
         return await runBackendTool(
           router,
           "draw_pixels",
@@ -161,8 +156,8 @@ export function registerDrawTools(server: McpServer, router: Router): void {
       inputSchema: {
         x: z.number().int().describe("Bounding box top-left X (0-based)"),
         y: z.number().int().describe("Bounding box top-left Y (0-based)"),
-        width: z.number().int().min(1).describe("Bounding box width in pixels"),
-        height: z.number().int().min(1).describe("Bounding box height in pixels"),
+        width: z.number().int().min(1).max(MAX_DIM).describe("Bounding box width in pixels"),
+        height: z.number().int().min(1).max(MAX_DIM).describe("Bounding box height in pixels"),
         color: hexColorSchema.describe("Hex color (#RRGGBB or #RRGGBBAA)"),
         filled: z.boolean().optional().describe("Fill interior (default false)"),
         ...layerFrameShape,
@@ -171,9 +166,6 @@ export function registerDrawTools(server: McpServer, router: Router): void {
     async ({ x, y, width, height, color, filled, layer, frame }) => {
       try {
         const pixels = rasterizeEllipse(x, y, width, height, color, filled ?? false);
-        if (pixels.length > MAX_PIXELS) {
-          throw new Error(`Ellipse expands to ${pixels.length} pixels (max ${MAX_PIXELS})`);
-        }
         return await runBackendTool(
           router,
           "draw_pixels",
@@ -217,8 +209,8 @@ export function registerDrawTools(server: McpServer, router: Router): void {
           .object({
             x: z.number().int(),
             y: z.number().int(),
-            width: z.number().int().min(1),
-            height: z.number().int().min(1),
+            width: z.number().int().min(1).max(MAX_DIM),
+            height: z.number().int().min(1).max(MAX_DIM),
           })
           .optional()
           .describe("Optional 0-based rectangle to clear; omit to clear the whole cel"),
@@ -244,7 +236,15 @@ export function registerDrawTools(server: McpServer, router: Router): void {
         bg: hexColorSchema.optional().describe("Background hex color (#RRGGBB or #RRGGBBAA)"),
       },
     },
-    async ({ fg, bg }) => runBackendTool(router, "set_colors", { fg, bg }),
+    async ({ fg, bg }) => {
+      if (fg === undefined && bg === undefined) {
+        return toolError("Provide at least one of fg or bg");
+      }
+      return runBackendTool(router, "set_colors", {
+        ...(fg !== undefined ? { fg } : {}),
+        ...(bg !== undefined ? { bg } : {}),
+      });
+    },
   );
 
   server.registerTool(

@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type Backend, getWorkdir, type RenderedPreview } from "./backend.ts";
+import { assertPathAllowed } from "./protocol.ts";
 
 export interface HeadlessState {
   layer?: string;
@@ -190,6 +191,14 @@ export class HeadlessBackend implements Backend {
     opts?: { mutating?: boolean },
   ): Promise<T> {
     return this.enqueue(async () => {
+      if (method === "run_lua" && process.env.ASEPRITE_MCP_ALLOW_LUA !== "1") {
+        throw new Error(
+          "run_lua is disabled. Set ASEPRITE_MCP_ALLOW_LUA=1 to enable custom Lua execution.",
+        );
+      }
+      if (method === "open_sprite" && typeof params.path === "string") {
+        params = { ...params, path: assertPathAllowed(params.path) };
+      }
       if (method === "undo") {
         return (await this.performUndo()) as T;
       }
@@ -252,8 +261,12 @@ export class HeadlessBackend implements Backend {
       } catch (err) {
         if (pushedSnapshot) {
           const reverted = this.undoStack.pop();
-          if (reverted?.filePath) {
-            rmSync(reverted.filePath, { force: true });
+          if (reverted) {
+            // Mutation may already be on disk (saveAs succeeded, later step failed).
+            this.applySnapshotFiles(reverted);
+            if (reverted.filePath) {
+              rmSync(reverted.filePath, { force: true });
+            }
           }
         }
         throw err;
@@ -358,11 +371,15 @@ export class HeadlessBackend implements Backend {
     }
 
     if (res.state) {
-      this.state = {
-        ...(res.state.layer !== undefined ? { layer: res.state.layer } : {}),
-        ...(res.state.frame !== undefined ? { frame: res.state.frame } : {}),
-        hasSprite: res.state.hasSprite,
-      };
+      if (res.state.hasSprite === false) {
+        this.state = { hasSprite: false };
+      } else {
+        this.state = {
+          hasSprite: res.state.hasSprite,
+          layer: res.state.layer !== undefined ? res.state.layer : this.state.layer,
+          frame: res.state.frame !== undefined ? res.state.frame : this.state.frame,
+        };
+      }
     }
 
     return res;
@@ -371,6 +388,18 @@ export class HeadlessBackend implements Backend {
   private nextPreviewPath(): string {
     mkdirSync(this.workdir, { recursive: true });
     return join(this.workdir, `headless-preview-${Date.now()}-${this.previewSeq++}.png`);
+  }
+
+  private applySnapshotFiles(snap: Snapshot): void {
+    if (snap.filePath && existsSync(snap.filePath)) {
+      mkdirSync(this.workdir, { recursive: true });
+      copyFileSync(snap.filePath, this.docPath);
+    } else {
+      rmSync(this.docPath, { force: true });
+    }
+    this.state = { ...snap.state };
+    this.sourcePath = snap.sourcePath;
+    this.latestPreview = null;
   }
 
   private captureCurrentSnapshot(): Snapshot {
@@ -407,15 +436,7 @@ export class HeadlessBackend implements Backend {
   }
 
   private async restoreSnapshot(snap: Snapshot): Promise<void> {
-    if (snap.filePath && existsSync(snap.filePath)) {
-      mkdirSync(this.workdir, { recursive: true });
-      copyFileSync(snap.filePath, this.docPath);
-    } else {
-      rmSync(this.docPath, { force: true });
-    }
-    this.state = { ...snap.state };
-    this.sourcePath = snap.sourcePath;
-    this.latestPreview = null;
+    this.applySnapshotFiles(snap);
 
     if (existsSync(this.docPath)) {
       const previewPath = this.nextPreviewPath();
@@ -457,7 +478,21 @@ export class HeadlessBackend implements Backend {
       throw new Error("Nothing to undo");
     }
     this.pushSnapshot(this.redoStack);
-    await this.restoreSnapshot(snap);
+    try {
+      await this.restoreSnapshot(snap);
+    } catch (err) {
+      const redoSnap = this.redoStack.pop();
+      if (redoSnap) {
+        this.undoStack.push(snap);
+        this.applySnapshotFiles(redoSnap);
+        if (redoSnap.filePath) {
+          rmSync(redoSnap.filePath, { force: true });
+        }
+      } else {
+        this.undoStack.push(snap);
+      }
+      throw err;
+    }
     if (snap.filePath) {
       rmSync(snap.filePath, { force: true });
     }
@@ -470,7 +505,21 @@ export class HeadlessBackend implements Backend {
       throw new Error("Nothing to redo");
     }
     this.pushSnapshot(this.undoStack);
-    await this.restoreSnapshot(snap);
+    try {
+      await this.restoreSnapshot(snap);
+    } catch (err) {
+      const undoSnap = this.undoStack.pop();
+      if (undoSnap) {
+        this.redoStack.push(snap);
+        this.applySnapshotFiles(undoSnap);
+        if (undoSnap.filePath) {
+          rmSync(undoSnap.filePath, { force: true });
+        }
+      } else {
+        this.redoStack.push(snap);
+      }
+      throw err;
+    }
     if (snap.filePath) {
       rmSync(snap.filePath, { force: true });
     }
@@ -504,15 +553,16 @@ export class HeadlessBackend implements Backend {
     if (!existsSync(this.docPath)) {
       throw new Error("No active sprite — open or create one");
     }
-    const targetPath =
+    const rawTarget =
       typeof params.path === "string" && params.path.trim() !== ""
         ? params.path.trim()
         : this.sourcePath;
-    if (!targetPath) {
+    if (!rawTarget) {
       throw new Error(
         "No save path provided and current headless sprite has no source file path.",
       );
     }
+    const targetPath = assertPathAllowed(rawTarget);
 
     const res = await this.invoke(
       "save_sprite",

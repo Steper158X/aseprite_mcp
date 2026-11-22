@@ -132,6 +132,7 @@ return function(util)
 
     img:drawPixel(sx, sy, fillVal)
     local filled = 1
+    local maxFill = w * h
     local stack = { sx, sy }
     local top = 2
 
@@ -143,6 +144,9 @@ return function(util)
       if cx + 1 < w and img:getPixel(cx + 1, cy) == targetVal then
         img:drawPixel(cx + 1, cy, fillVal)
         filled = filled + 1
+        if filled > maxFill then
+          error("fill_area exceeded canvas pixel budget")
+        end
         top = top + 2
         stack[top - 1] = cx + 1
         stack[top] = cy
@@ -150,6 +154,9 @@ return function(util)
       if cx - 1 >= 0 and img:getPixel(cx - 1, cy) == targetVal then
         img:drawPixel(cx - 1, cy, fillVal)
         filled = filled + 1
+        if filled > maxFill then
+          error("fill_area exceeded canvas pixel budget")
+        end
         top = top + 2
         stack[top - 1] = cx - 1
         stack[top] = cy
@@ -157,6 +164,9 @@ return function(util)
       if cy + 1 < h and img:getPixel(cx, cy + 1) == targetVal then
         img:drawPixel(cx, cy + 1, fillVal)
         filled = filled + 1
+        if filled > maxFill then
+          error("fill_area exceeded canvas pixel budget")
+        end
         top = top + 2
         stack[top - 1] = cx
         stack[top] = cy + 1
@@ -164,6 +174,9 @@ return function(util)
       if cy - 1 >= 0 and img:getPixel(cx, cy - 1) == targetVal then
         img:drawPixel(cx, cy - 1, fillVal)
         filled = filled + 1
+        if filled > maxFill then
+          error("fill_area exceeded canvas pixel budget")
+        end
         top = top + 2
         stack[top - 1] = cx
         stack[top] = cy - 1
@@ -735,6 +748,9 @@ return function(util)
   function handlers.run_lua(params)
     if not params or type(params.code) ~= "string" or params.code == "" then
       error("code string is required")
+    end
+    if util.isLuaAllowed and not util.isLuaAllowed() then
+      error("run_lua is disabled. Enable 'Allow run_lua' in the MCP Bridge dialog (and ASEPRITE_MCP_ALLOW_LUA=1 on the server).")
     end
     local env = setmetatable({}, { __index = _G })
     local chunk, loadErr = load(params.code, "mcp", "t", env)

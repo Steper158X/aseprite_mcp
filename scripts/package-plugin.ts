@@ -55,9 +55,11 @@ const entries = listArchive.stdout
   .map((line) => line.trim())
   .filter(Boolean);
 
-if (!entries.includes("package.json") || !entries.includes("plugin.lua")) {
+const required = ["package.json", "plugin.lua", "lib/handlers.lua", "lib/util.lua"];
+const missing = required.filter((name) => !entries.includes(name));
+if (missing.length > 0) {
   console.error(
-    `Archive verification failed: expected package.json and plugin.lua at root. Got:\n${entries.join("\n")}`,
+    `Archive verification failed: missing ${missing.join(", ")}. Got:\n${entries.join("\n")}`,
   );
   process.exit(1);
 }

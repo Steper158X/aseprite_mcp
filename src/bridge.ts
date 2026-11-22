@@ -19,6 +19,12 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
+interface ConnectionWaiter {
+  resolve: () => void;
+  reject: (reason: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 export interface BridgeStatus {
   connected: boolean;
   port: number;
@@ -34,7 +40,7 @@ export class Bridge implements BridgeTransport {
   private listeningPort = DEFAULT_BRIDGE_PORT;
   private _portConflict: string | null = null;
   private pending = new Map<string, PendingRequest>();
-  private connectionWaiters = new Set<() => void>();
+  private connectionWaiters = new Set<ConnectionWaiter>();
   private eventListeners = new Set<(event: string, data: Record<string, unknown>) => void>();
   private connectionListeners = new Set<(connected: boolean) => void>();
   private textDecoder = new TextDecoder();
@@ -82,7 +88,7 @@ export class Bridge implements BridgeTransport {
 
   stop(): void {
     this.rejectAllPending(new Error("Bridge stopped"));
-    this.rejectAllWaiters();
+    this.rejectAllWaiters(new Error("Bridge stopped"));
     const active = this.client;
     this.client = null;
     this.helloInfo = null;
@@ -107,18 +113,23 @@ export class Bridge implements BridgeTransport {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.connectionWaiters.delete(onConnect);
-        reject(new Error(notConnectedMessage(this.port)));
-      }, timeoutMs);
-
-      const onConnect = () => {
-        clearTimeout(timer);
-        this.connectionWaiters.delete(onConnect);
-        resolve();
+      const entry: ConnectionWaiter = {
+        resolve: () => {
+          clearTimeout(entry.timer);
+          this.connectionWaiters.delete(entry);
+          resolve();
+        },
+        reject: (err: Error) => {
+          clearTimeout(entry.timer);
+          this.connectionWaiters.delete(entry);
+          reject(err);
+        },
+        timer: setTimeout(() => {
+          this.connectionWaiters.delete(entry);
+          reject(new Error(notConnectedMessage(this.port)));
+        }, timeoutMs),
       };
-
-      this.connectionWaiters.add(onConnect);
+      this.connectionWaiters.add(entry);
     });
   }
 
@@ -187,8 +198,8 @@ export class Bridge implements BridgeTransport {
     this.client = ws;
     this.helloInfo = null;
 
-    for (const notify of this.connectionWaiters) {
-      notify();
+    for (const waiter of [...this.connectionWaiters]) {
+      waiter.resolve();
     }
     this.emitConnectionChange(true);
   }
@@ -230,7 +241,10 @@ export class Bridge implements BridgeTransport {
       return;
     }
 
-    if (typeof obj.id !== "string") return;
+    if (typeof obj.id !== "string") {
+      console.error("[aseprite-mcp] Ignoring bridge response with non-string id");
+      return;
+    }
     const entry = this.pending.get(obj.id);
     if (!entry) return;
 
@@ -271,7 +285,10 @@ export class Bridge implements BridgeTransport {
     }
   }
 
-  private rejectAllWaiters(): void {
+  private rejectAllWaiters(err: Error): void {
+    for (const waiter of [...this.connectionWaiters]) {
+      waiter.reject(err);
+    }
     this.connectionWaiters.clear();
   }
 }

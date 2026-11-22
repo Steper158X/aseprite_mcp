@@ -188,4 +188,49 @@ describe("Bridge", () => {
     expect(refused).toBe(true);
     expect(bridge.isConnected).toBe(false);
   });
+
+  test("stop rejects waitForConnection immediately", async () => {
+    const bridge = new Bridge();
+    bridges.push(bridge);
+    bridge.start(0);
+
+    const waiting = bridge.waitForConnection(5000);
+    bridge.stop();
+    await expect(waiting).rejects.toThrow(/Bridge stopped/);
+  });
+
+  test("aseprite websocket requires token when ASEPRITE_MCP_TOKEN is set", async () => {
+    const prev = process.env.ASEPRITE_MCP_TOKEN;
+    process.env.ASEPRITE_MCP_TOKEN = "test-secret";
+    try {
+      const bridge = new Bridge();
+      bridges.push(bridge);
+      bridge.start(0);
+
+      const denied = await new Promise<boolean>((resolve) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/aseprite`);
+        sockets.push(ws);
+        ws.addEventListener("open", () => resolve(false));
+        ws.addEventListener("error", () => resolve(true));
+        ws.addEventListener("close", () => resolve(true));
+      });
+      expect(denied).toBe(true);
+
+      const ws = await connectFakeClient(
+        `ws://127.0.0.1:${bridge.port}/aseprite?token=test-secret`,
+        (req, sock) => {
+          sock.send(JSON.stringify({ id: req.id, ok: true, result: { ok: true } }));
+        },
+      );
+      sockets.push(ws);
+      await Bun.sleep(20);
+      expect(bridge.isConnected).toBe(true);
+      await expect(bridge.call("ping")).resolves.toEqual({ ok: true });
+    } finally {
+      if (prev === undefined) delete process.env.ASEPRITE_MCP_TOKEN;
+      else process.env.ASEPRITE_MCP_TOKEN = prev;
+    }
+  });
 });
+
+

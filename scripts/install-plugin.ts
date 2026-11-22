@@ -1,4 +1,5 @@
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 const sourceDir = resolve(import.meta.dir, "..", "aseprite-plugin");
@@ -7,11 +8,20 @@ if (!existsSync(sourceDir)) {
   process.exit(1);
 }
 
-const appData = process.env.APPDATA;
-const extensionsBase = appData
-  ? join(appData, "Aseprite", "extensions")
-  : join(process.env.HOME ?? "", ".config", "aseprite", "extensions");
+function extensionsBaseDir(): string {
+  if (process.env.APPDATA) {
+    return join(process.env.APPDATA, "Aseprite", "extensions");
+  }
 
+  const home = process.env.HOME ?? homedir();
+  if (process.platform === "darwin") {
+    return join(home, "Library", "Application Support", "Aseprite", "extensions");
+  }
+  // Linux / other Unix: Aseprite uses ~/.config/aseprite/extensions
+  return join(home, ".config", "aseprite", "extensions");
+}
+
+const extensionsBase = extensionsBaseDir();
 const targetDir = join(extensionsBase, "aseprite-mcp-bridge");
 
 mkdirSync(extensionsBase, { recursive: true });
