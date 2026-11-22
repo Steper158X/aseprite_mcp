@@ -13,6 +13,18 @@ local reconnectTimer = nil
 local siteListenerId = nil
 local watchedSprite = nil
 local spriteListenerId = nil
+local bridgeDialog = nil
+
+local function updateDialog()
+  if not bridgeDialog then
+    return
+  end
+  pcall(function()
+    bridgeDialog:modify { id = "status", text = connected and "Connected" or "Disconnected" }
+    bridgeDialog:modify { id = "btn_connect", visible = (not connected) }
+    bridgeDialog:modify { id = "btn_disconnect", visible = connected }
+  end)
+end
 
 local function isTableLike(v)
   local t = type(v)
@@ -133,6 +145,7 @@ local function disconnectBridge(isManual)
       old:close()
     end)
   end
+  updateDialog()
 end
 
 local function connectBridge(plugin)
@@ -148,6 +161,7 @@ local function connectBridge(plugin)
     onreceive = function(mt, data)
       if mt == WebSocketMessageType.OPEN then
         connected = true
+        updateDialog()
         if reconnectTimer then
           pcall(function()
             reconnectTimer:stop()
@@ -172,6 +186,7 @@ local function connectBridge(plugin)
         end
       elseif mt == WebSocketMessageType.CLOSE then
         connected = false
+        updateDialog()
         if not manualDisconnect and reconnectTimer then
           pcall(function()
             reconnectTimer:start()
@@ -182,6 +197,78 @@ local function connectBridge(plugin)
   }
 
   ws:connect()
+end
+
+local function openBridgeDialog(plugin)
+  if bridgeDialog then
+    pcall(function()
+      bridgeDialog:close()
+    end)
+    bridgeDialog = nil
+  end
+
+  local dlg = Dialog {
+    title = "Aseprite MCP Bridge",
+    onclose = function()
+      bridgeDialog = nil
+    end,
+  }
+
+  dlg
+    :label {
+      id = "status",
+      label = "Status:",
+      text = connected and "Connected" or "Disconnected",
+    }
+    :entry {
+      id = "url",
+      label = "URL:",
+      text = getBridgeUrl(plugin),
+    }
+    :label {
+      id = "version",
+      label = "Plugin:",
+      text = "v" .. PLUGIN_VERSION .. " (API v" .. tostring(app.apiVersion) .. ")",
+    }
+    :separator {}
+    :button {
+      id = "btn_connect",
+      text = "Connect",
+      visible = (not connected),
+      onclick = function()
+        local rawUrl = dlg.data and dlg.data.url
+        if type(rawUrl) == "string" then
+          local trimmed = rawUrl:match("^%s*(.-)%s*$")
+          if trimmed and trimmed ~= "" then
+            plugin.preferences.url = trimmed
+          end
+        end
+        connectBridge(plugin)
+        updateDialog()
+      end,
+    }
+    :button {
+      id = "btn_disconnect",
+      text = "Disconnect",
+      visible = connected,
+      onclick = function()
+        disconnectBridge(true)
+        updateDialog()
+      end,
+    }
+    :button {
+      id = "btn_close",
+      text = "Close",
+      onclick = function()
+        if bridgeDialog then
+          bridgeDialog:close()
+        end
+      end,
+    }
+
+  bridgeDialog = dlg
+  dlg:show { wait = false }
+  updateDialog()
 end
 
 function init(plugin)
@@ -244,37 +331,11 @@ function init(plugin)
   end
 
   plugin:newCommand {
-    id = "aseprite_mcp_connect",
-    title = "MCP Bridge: Connect",
+    id = "aseprite_mcp_bridge",
+    title = "MCP Bridge...",
     group = "file_scripts",
     onclick = function()
-      connectBridge(plugin)
-    end,
-  }
-
-  plugin:newCommand {
-    id = "aseprite_mcp_disconnect",
-    title = "MCP Bridge: Disconnect",
-    group = "file_scripts",
-    onclick = function()
-      disconnectBridge(true)
-    end,
-  }
-
-  plugin:newCommand {
-    id = "aseprite_mcp_status",
-    title = "MCP Bridge: Status",
-    group = "file_scripts",
-    onclick = function()
-      local state = connected and "Connected" or "Disconnected"
-      app.alert {
-        title = "Aseprite MCP Bridge",
-        text = {
-          "Status: " .. state,
-          "URL: " .. getBridgeUrl(plugin),
-          "Plugin v" .. PLUGIN_VERSION .. " (API v" .. tostring(app.apiVersion) .. ")",
-        },
-      }
+      openBridgeDialog(plugin)
     end,
   }
 
@@ -283,6 +344,12 @@ end
 
 function exit(_plugin)
   manualDisconnect = true
+  if bridgeDialog then
+    pcall(function()
+      bridgeDialog:close()
+    end)
+    bridgeDialog = nil
+  end
   if reconnectTimer then
     pcall(function()
       reconnectTimer:stop()

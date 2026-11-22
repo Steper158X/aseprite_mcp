@@ -99,7 +99,7 @@ bun run package-plugin
 3. หากมีหน้าต่างเด้งถามขอสิทธิ์ script/network ให้กดอนุญาต (**Give full trust**)
 4. **ปิดแล้วเปิด Aseprite ใหม่ 1 ครั้ง** เพื่อให้ปลั๊กอินเริ่มทำงานและเชื่อมต่ออัตโนมัติ
 5. ลองเข้าไปเช็คที่ **Edit > Preferences > Extensions** ว่ามี **Aseprite MCP Bridge** แสดงและติ๊กถูกอยู่
-   - *(ทริค)* สามารถเช็คสถานะหรือสั่งเชื่อมใหม่ได้ตลอดที่เมนู **File > Scripts > MCP Bridge: Status / Connect / Disconnect**
+   - *(ทริค)* สามารถเช็คสถานะหรือกดเชื่อมต่อ/ตัดการเชื่อมต่อเองได้ตลอดที่เมนู **File > MCP Bridge...**
 
 ---
 
@@ -261,7 +261,7 @@ bun run package-plugin
 
 - **ขึ้นข้อความ `'bun' is not recognized` หลังติดตั้ง Bun:** ให้ปิด PowerShell/Terminal แล้วเปิดขึ้นมาใหม่ หากเป็นปัญหาในไฟล์ JSON ของโปรแกรม AI ให้ใส่พาธเต็มของ `bun.exe` (ดูได้จากคำสั่ง `where.exe bun` บน Windows หรือ `which bun` บน macOS/Linux)
 - **พอร์ต 7777 ชนกัน (Port Conflict):** ถ้าเปิด AI Client สองตัวพร้อมกัน (เช่น Antigravity + Claude Desktop) ตัวแรกจะได้พอร์ต `7777` ส่วนตัวที่สองจะไม่ crash แต่จะคืนข้อความแจ้งพอร์ตชนกัน ให้ปิดตัวหนึ่งหรือตั้ง `ASEPRITE_MCP_PORT` แยก
-- **Aseprite ยังขึ้นว่า Disconnected หรือไม่เห็นเมนู:** เช็คที่ **Edit > Preferences > Extensions** ว่าติ๊กเปิด **Aseprite MCP Bridge** แล้วรีสตาร์ท Aseprite หรือกด **File > Scripts > MCP Bridge: Connect** ขณะเปิด AI Client อยู่
+- **Aseprite ยังขึ้นว่า Disconnected หรือไม่เห็นเมนู:** เช็คที่ **Edit > Preferences > Extensions** ว่าติ๊กเปิด **Aseprite MCP Bridge** แล้วรีสตาร์ท Aseprite หรือกด **File > MCP Bridge...** แล้วกด **Connect** ขณะเปิด AI Client อยู่
 - **ความเร็วโหมด Headless:** โหมด Headless จะเรียก `Aseprite.exe -b` ทีละคำสั่ง (~0.2–1 วินาทีต่อคำสั่ง) ส่วนโหมด Live ตอบสนองทันทีผ่าน WebSocket
 - **การใช้งาน `Ctrl+Z` (Undo Semantics):**
   - **โหมด Live:** แต่ละคำสั่งที่แก้ไขภาพจะรวมเป็น 1 `app.transaction` กด `Ctrl+Z` ครั้งเดียวจะย้อนกลับทั้งคำสั่ง ส่วน tool `undo` จะย้อนการกระทำล่าสุดไม่ว่า AI หรือผู้ใช้จะเป็นคนวาด

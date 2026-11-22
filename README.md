@@ -99,7 +99,7 @@ bun run package-plugin
 3. If Aseprite asks for permission to run scripts or connect to localhost, choose **Give full trust**.
 4. **Restart Aseprite once** so the plugin activates and auto-connects.
 5. Check **Edit > Preferences > Extensions** to confirm **Aseprite MCP Bridge** is listed and checked.
-   - *(Tip)* You can also check connection status or reconnect manually anytime inside Aseprite under **File > Scripts > MCP Bridge: Status / Connect / Disconnect**.
+   - *(Tip)* You can also check connection status or connect/disconnect manually anytime inside Aseprite under **File > MCP Bridge...**.
 
 ---
 
@@ -264,7 +264,7 @@ What you'll see in the Web Preview:
 
 - **"bun is not recognized" after installing Bun:** Close PowerShell/Terminal completely and open a fresh one. In AI Client JSON configs, use the full path to `bun.exe` (found via `where.exe bun` on Windows or `which bun` on macOS/Linux).
 - **Port `7777` conflict:** Running two AI clients at once (e.g., Antigravity + Claude Desktop) causes the second server to hit `EADDRINUSE`. It stays alive without crashing and reports the port conflict on tool calls. Close one client or set a custom `ASEPRITE_MCP_PORT`.
-- **Aseprite says "Disconnected" or extension missing:** Check **Edit > Preferences > Extensions** to confirm **Aseprite MCP Bridge** is checked, restart Aseprite, or click **File > Scripts > MCP Bridge: Connect** while an AI client is running.
+- **Aseprite says "Disconnected" or extension missing:** Check **Edit > Preferences > Extensions** to confirm **Aseprite MCP Bridge** is checked, restart Aseprite, or click **File > MCP Bridge...** and click **Connect** while an AI client is running.
 - **Headless latency:** Headless mode launches `Aseprite.exe -b` per call (~0.2–1 s per action), whereas Live mode executes immediately over WebSocket.
 - **`Ctrl+Z` undo behavior:**
   - **Live mode:** Each mutating MCP tool call is one `app.transaction` (`Ctrl+Z` reverts one entire shape/pixel batch). Note that the `undo` tool calls `app.undo()`, which undoes the most recent action regardless of whether the AI or the user made it.
