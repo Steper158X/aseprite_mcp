@@ -37,8 +37,17 @@ local function isTableLike(v)
 end
 
 local function sendJson(payload)
-  if ws and connected then
+  if not ws or not connected then
+    return
+  end
+  -- Aseprite can report connected=true while the socket already dropped
+  -- (CLOSE race / auto-reconnect). Guard sendText so Console stays clean.
+  local ok = pcall(function()
     ws:sendText(json.encode(payload))
+  end)
+  if not ok then
+    connected = false
+    updateDialog()
   end
 end
 
