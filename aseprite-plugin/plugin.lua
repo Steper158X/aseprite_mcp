@@ -2,15 +2,64 @@ local PLUGIN_VERSION = "0.1.0"
 local DEFAULT_URL = "ws://127.0.0.1:7777/aseprite"
 local LEGACY_DEFAULT_URL = "ws://127.0.0.1:7531"
 
--- Keep WebSocket in module scope so Lua GC never collects an active bridge socket.
+-- Keep WebSocket, timer, and listeners in module scope so Lua GC never collects them.
 local ws = nil
 local connected = false
 local handlers = nil
 local pluginRef = nil
+local debounceTimer = nil
+local siteListenerId = nil
+local watchedSprite = nil
+local spriteListenerId = nil
+
+local function isTableLike(v)
+  local t = type(v)
+  return t == "table" or t == "userdata"
+end
 
 local function sendJson(payload)
   if ws and connected then
     ws:sendText(json.encode(payload))
+  end
+end
+
+local function detachSpriteWatcher()
+  if watchedSprite and spriteListenerId then
+    pcall(function()
+      watchedSprite.events:off(spriteListenerId)
+    end)
+  end
+  watchedSprite = nil
+  spriteListenerId = nil
+end
+
+local function scheduleChangeEvent()
+  if not connected or not debounceTimer then
+    return
+  end
+  pcall(function()
+    debounceTimer:stop()
+    debounceTimer:start()
+  end)
+end
+
+local function attachSpriteWatcher()
+  local s = app.activeSprite or app.sprite
+  if s == watchedSprite then
+    return
+  end
+  detachSpriteWatcher()
+  if s and s.events then
+    watchedSprite = s
+    local ok, lid = pcall(function()
+      return s.events:on("change", scheduleChangeEvent)
+    end)
+    if ok then
+      spriteListenerId = lid
+      scheduleChangeEvent()
+    else
+      watchedSprite = nil
+    end
   end
 end
 
@@ -21,11 +70,6 @@ local function getBridgeUrl(plugin)
     plugin.preferences.url = url
   end
   return url
-end
-
-local function isTableLike(v)
-  local t = type(v)
-  return t == "table" or t == "userdata"
 end
 
 local function handleText(data)
@@ -67,6 +111,11 @@ end
 
 local function disconnectBridge()
   connected = false
+  if debounceTimer then
+    pcall(function()
+      debounceTimer:stop()
+    end)
+  end
   if ws then
     local old = ws
     ws = nil
@@ -94,10 +143,10 @@ local function connectBridge(plugin)
           aseprite = tostring(app.version),
           apiVersion = app.apiVersion,
         })
+        attachSpriteWatcher()
       elseif mt == WebSocketMessageType.TEXT then
         local ok, err = pcall(handleText, data)
         if not ok then
-          -- Best-effort fallback if handleText itself errored unexpectedly
           pcall(function()
             local parsedOk, req = pcall(json.decode, data)
             if parsedOk and isTableLike(req) and type(req.id) == "string" then
@@ -121,6 +170,38 @@ function init(plugin)
   handlers = buildHandlers(util)
 
   getBridgeUrl(plugin)
+
+  if app.isUIAvailable and app.events and Timer then
+    local okTimer, timerOrErr = pcall(function()
+      return Timer {
+        interval = 0.25,
+        ontick = function()
+          if debounceTimer then
+            pcall(function()
+              debounceTimer:stop()
+            end)
+          end
+          if connected then
+            sendJson({
+              type = "event",
+              event = "sprite_changed",
+            })
+          end
+        end,
+      }
+    end)
+    if okTimer then
+      debounceTimer = timerOrErr
+    end
+
+    local okSite, lid = pcall(function()
+      return app.events:on("sitechange", attachSpriteWatcher)
+    end)
+    if okSite then
+      siteListenerId = lid
+    end
+    attachSpriteWatcher()
+  end
 
   plugin:newCommand {
     id = "aseprite_mcp_connect",
@@ -161,6 +242,19 @@ function init(plugin)
 end
 
 function exit(_plugin)
+  if debounceTimer then
+    pcall(function()
+      debounceTimer:stop()
+    end)
+    debounceTimer = nil
+  end
+  if siteListenerId and app.events then
+    pcall(function()
+      app.events:off(siteListenerId)
+    end)
+    siteListenerId = nil
+  end
+  detachSpriteWatcher()
   disconnectBridge()
   pluginRef = nil
 end

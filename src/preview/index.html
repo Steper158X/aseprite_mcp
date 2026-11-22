@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aseprite MCP Preview</title>
+  <style>
+    :root {
+      --bg: #14161b;
+      --panel: #1c2028;
+      --border: #2b313d;
+      --text: #e6eaf2;
+      --muted: #939db0;
+      --live: #22c55e;
+      --headless: #3b82f6;
+      --offline: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #232834;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--offline);
+    }
+    .badge.live .dot { background: var(--live); box-shadow: 0 0 8px var(--live); }
+    .badge.headless .dot { background: var(--headless); box-shadow: 0 0 8px var(--headless); }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .controls label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .meta {
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      color: var(--text);
+    }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 270px;
+      min-height: 0;
+    }
+    @media (max-width: 800px) {
+      main { grid-template-columns: 1fr; grid-template-rows: 1fr 180px; }
+    }
+    .viewport {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+      padding: 24px;
+      background-color: #101216;
+    }
+    .checkerboard {
+      display: inline-flex;
+      padding: 0;
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      background-image:
+        linear-gradient(45deg, #242933 25%, transparent 25%),
+        linear-gradient(-45deg, #242933 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #242933 75%),
+        linear-gradient(-45deg, transparent 75%, #242933 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-color: #1b1f27;
+    }
+    #canvas {
+      display: none;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      transform-origin: center;
+    }
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.6;
+    }
+    aside {
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    aside h2 {
+      margin: 0;
+      padding: 12px 14px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    #log {
+      list-style: none;
+      margin: 0;
+      padding: 8px;
+      overflow-y: auto;
+      flex: 1;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 12px;
+    }
+    #log li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+    }
+    #log li:first-child {
+      background: #242a36;
+    }
+    .log-tool { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-right { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>Aseprite MCP Preview</span>
+      <span id="badge" class="badge"><span class="dot"></span><span id="badgeText">Connecting...</span></span>
+    </div>
+    <div class="controls">
+      <span>Size: <strong id="dims" class="meta">—</strong></span>
+      <span>Last: <strong id="lastTool" class="meta">—</strong></span>
+      <label>
+        Zoom
+        <input id="zoom" type="range" min="25" max="200" step="25" value="100" />
+        <span id="zoomVal" class="meta">100%</span>
+      </label>
+    </div>
+  </header>
+  <main>
+    <div class="viewport">
+      <div id="empty" class="empty">
+        Waiting for first sprite update...<br />
+        Draw with an AI client or edit in Aseprite to see live updates here.
+      </div>
+      <div id="board" class="checkerboard" style="display: none;">
+        <img id="canvas" alt="Aseprite sprite preview" />
+      </div>
+    </div>
+    <aside>
+      <h2>Activity (Last 20)</h2>
+      <ul id="log"></ul>
+    </aside>
+  </main>
+
+  <script>
+    const badgeEl = document.getElementById("badge");
+    const badgeTextEl = document.getElementById("badgeText");
+    const dimsEl = document.getElementById("dims");
+    const lastToolEl = document.getElementById("lastTool");
+    const zoomInput = document.getElementById("zoom");
+    const zoomValEl = document.getElementById("zoomVal");
+    const emptyEl = document.getElementById("empty");
+    const boardEl = document.getElementById("board");
+    const canvasEl = document.getElementById("canvas");
+    const logEl = document.getElementById("log");
+
+    let baseWidth = 0;
+    let baseHeight = 0;
+
+    function applyZoom() {
+      const pct = Number(zoomInput.value);
+      zoomValEl.textContent = pct + "%";
+      if (baseWidth > 0 && baseHeight > 0) {
+        canvasEl.style.width = Math.round((baseWidth * pct) / 100) + "px";
+        canvasEl.style.height = Math.round((baseHeight * pct) / 100) + "px";
+      }
+    }
+
+    zoomInput.addEventListener("input", applyZoom);
+
+    function setBadge(kind, label) {
+      badgeEl.className = "badge" + (kind ? " " + kind : "");
+      badgeTextEl.textContent = label;
+    }
+
+    function formatTime(ts) {
+      return new Date(ts).toLocaleTimeString([], { hour12: false });
+    }
+
+    function renderLog(items) {
+      logEl.innerHTML = "";
+      for (const item of items || []) {
+        const li = document.createElement("li");
+        const name = document.createElement("span");
+        name.className = "log-tool";
+        name.textContent = item.tool;
+        const meta = document.createElement("span");
+        meta.className = "log-right";
+        meta.textContent = item.mode + " · " + formatTime(item.ts);
+        li.append(name, meta);
+        logEl.appendChild(li);
+      }
+    }
+
+    function connect() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(proto + "//" + location.host + "/preview");
+
+      ws.addEventListener("message", (event) => {
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        if (msg.type === "status") {
+          if (msg.activeBackend === "live") {
+            setBadge("live", "Live");
+          } else if (msg.activeBackend === "headless") {
+            setBadge("headless", "Headless");
+          } else {
+            setBadge("", "Disconnected");
+          }
+          return;
+        }
+
+        if (msg.type === "frame") {
+          if (msg.mode === "live") setBadge("live", "Live");
+          else if (msg.mode === "headless") setBadge("headless", "Headless");
+
+          baseWidth = msg.width || 0;
+          baseHeight = msg.height || 0;
+          const spriteSize = msg.spriteWidth && msg.spriteHeight
+            ? msg.spriteWidth + "x" + msg.spriteHeight + " (" + baseWidth + "px)"
+            : baseWidth + "x" + baseHeight;
+          dimsEl.textContent = spriteSize;
+          lastToolEl.textContent = msg.tool || "—";
+
+          emptyEl.style.display = "none";
+          boardEl.style.display = "inline-flex";
+          canvasEl.style.display = "block";
+          canvasEl.src = "data:image/png;base64," + msg.png;
+          applyZoom();
+          renderLog(msg.history);
+        }
+      });
+
+      ws.addEventListener("close", () => {
+        setBadge("", "Reconnecting...");
+        setTimeout(connect, 1500);
+      });
+    }
+
+    connect();
+  </script>
+</body>
+</html>

@@ -35,6 +35,8 @@ export class Bridge implements BridgeTransport {
   private _portConflict: string | null = null;
   private pending = new Map<string, PendingRequest>();
   private connectionWaiters = new Set<() => void>();
+  private eventListeners = new Set<(event: string, data: Record<string, unknown>) => void>();
+  private connectionListeners = new Set<(connected: boolean) => void>();
   private textDecoder = new TextDecoder();
 
   get isConnected(): boolean {
@@ -157,6 +159,20 @@ export class Bridge implements BridgeTransport {
     });
   }
 
+  onEvent(cb: (event: string, data: Record<string, unknown>) => void): () => void {
+    this.eventListeners.add(cb);
+    return () => {
+      this.eventListeners.delete(cb);
+    };
+  }
+
+  onConnectionChange(cb: (connected: boolean) => void): () => void {
+    this.connectionListeners.add(cb);
+    return () => {
+      this.connectionListeners.delete(cb);
+    };
+  }
+
   attach(ws: ServerWebSocket<WsClientData>): void {
     const previous = this.client;
     if (previous && previous !== ws) {
@@ -174,6 +190,7 @@ export class Bridge implements BridgeTransport {
     for (const notify of this.connectionWaiters) {
       notify();
     }
+    this.emitConnectionChange(true);
   }
 
   onMessage(ws: ServerWebSocket<WsClientData>, message: string | Buffer<ArrayBuffer>): void {
@@ -198,6 +215,18 @@ export class Bridge implements BridgeTransport {
         aseprite: typeof obj.aseprite === "string" ? obj.aseprite : "unknown",
         apiVersion: typeof obj.apiVersion === "number" ? obj.apiVersion : 0,
       };
+      this.emitConnectionChange(true);
+      return;
+    }
+
+    if (obj.type === "event" && typeof obj.event === "string") {
+      for (const listener of this.eventListeners) {
+        try {
+          listener(obj.event, obj);
+        } catch {
+          // ignore listener errors
+        }
+      }
       return;
     }
 
@@ -221,6 +250,17 @@ export class Bridge implements BridgeTransport {
     this.client = null;
     this.helloInfo = null;
     this.rejectAllPending(new Error("Aseprite disconnected"));
+    this.emitConnectionChange(false);
+  }
+
+  private emitConnectionChange(connected: boolean): void {
+    for (const listener of this.connectionListeners) {
+      try {
+        listener(connected);
+      } catch {
+        // ignore listener errors
+      }
+    }
   }
 
   private rejectAllPending(err: Error): void {
