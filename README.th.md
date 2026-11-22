@@ -10,9 +10,10 @@
 
 ## ตัวอย่างผลงาน (Showcase)
 
-![ตัวอย่าง Animation แมวส้มที่วาดสดผ่าน Aseprite MCP](docs/demo-orange-cat.gif)
-
-*Animation แมวส้มยิ้มแฉ่ง 4 เฟรม (`32×32`, `160 ms/frame`, ขยาย 8× สำหรับแสดงผล) วาดสดในหน้าต่าง Aseprite ด้วยคำสั่ง `new_sprite`, `set_layer_props`, `add_layer`, `draw_rect`, `draw_ellipse`, `draw_pixel_art`, `add_frame`, `set_frame_duration` และตรวจสอบภาพแต่ละเฟรมด้วย `get_screenshot`*
+| Animation น้องแมวส้ม (32×32, 4 เฟรม) | ห้องเล่นเปียโน Isometric แสนอบอุ่น (96×96, 6 เลเยอร์) |
+| :---: | :---: |
+| ![ตัวอย่าง Animation แมวส้มที่วาดสดผ่าน Aseprite MCP](docs/demo-orange-cat.gif) | ![ตัวอย่างห้องเปียโน Isometric แสงแดดอบอุ่นที่วาดสดผ่าน Aseprite MCP](docs/demo-piano-room.png) |
+| Animation แมวส้มยิ้มแฉ่ง 4 เฟรม (`160 ms/frame`) วาดด้วย `draw_pixel_art`, `add_frame`, `set_frame_duration` | ฉากห้องเปียโน Isometric 2:1 แยก 6 เลเยอร์ (`Backdrop`, `Room Shell`, `Window & Decor`, `Piano & Bench`, `Pianist`, `Sunlight` โหมด screen) วาดด้วย `draw_line`, `fill_area`, `draw_pixel_art`, `set_layer_props` |
 
 ---
 

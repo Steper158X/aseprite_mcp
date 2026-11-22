@@ -10,9 +10,10 @@ It also works **even when Aseprite is closed** (Headless mode via `ASEPRITE_PATH
 
 ## Showcase
 
-![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif)
-
-*4-frame smiling orange tabby animation (`32×32`, `160 ms/frame`, scaled 8× for display) created live inside Aseprite using `new_sprite`, `set_layer_props`, `add_layer`, `draw_rect`, `draw_ellipse`, `draw_pixel_art`, `add_frame`, `set_frame_duration`, and checked frame-by-frame with `get_screenshot`.*
+| Animated Sprite (32×32, 4 Frames) | Isometric Cozy Piano Room (96×96, 6 Layers) |
+| :---: | :---: |
+| ![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif) | ![Cozy Isometric Piano Room created live via Aseprite MCP](docs/demo-piano-room.png) |
+| 4-frame smiling orange tabby (`160 ms/frame`, 8× display) built with `draw_pixel_art`, `add_frame`, `set_frame_duration` | Multi-layer 2:1 isometric diorama (`Backdrop`, `Room Shell`, `Window & Decor`, `Piano & Bench`, `Pianist`, `Sunlight` screen-blend sunbeams) built with `draw_line`, `fill_area`, `draw_pixel_art`, `set_layer_props` |
 
 ---
 
