@@ -56,7 +56,7 @@ describe("Bridge", () => {
     bridge.start(0);
     expect(bridge.port).toBeGreaterThan(0);
 
-    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}`, (req, sock) => {
+    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`, (req, sock) => {
       sock.send(
         JSON.stringify({
           id: req.id,
@@ -85,7 +85,7 @@ describe("Bridge", () => {
     bridges.push(bridge);
     bridge.start(0);
 
-    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}`, (req, sock) => {
+    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`, (req, sock) => {
       sock.send(JSON.stringify({ id: req.id, ok: false, error: "No active sprite" }));
     });
     sockets.push(ws);
@@ -98,7 +98,7 @@ describe("Bridge", () => {
     bridges.push(bridge);
     bridge.start(0);
 
-    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}`);
+    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`);
     sockets.push(ws);
 
     await expect(bridge.call("slow_method", {}, 40)).rejects.toThrow(/timed out/i);
@@ -109,7 +109,7 @@ describe("Bridge", () => {
     bridges.push(bridge);
     bridge.start(0);
 
-    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}`);
+    const ws = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`);
     sockets.push(ws);
 
     const pendingCall = bridge
@@ -132,7 +132,7 @@ describe("Bridge", () => {
     bridge.start(0);
 
     let firstClosed = false;
-    const ws1 = await connectFakeClient(`ws://127.0.0.1:${bridge.port}`);
+    const ws1 = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`);
     sockets.push(ws1);
     ws1.addEventListener("close", () => {
       firstClosed = true;
@@ -143,7 +143,7 @@ describe("Bridge", () => {
       .then(() => null, (err: unknown) => err as Error);
     await Bun.sleep(15);
 
-    const ws2 = await connectFakeClient(`ws://127.0.0.1:${bridge.port}`, (req, sock) => {
+    const ws2 = await connectFakeClient(`ws://127.0.0.1:${bridge.port}/aseprite`, (req, sock) => {
       sock.send(JSON.stringify({ id: req.id, ok: true, result: { from: "second" } }));
     });
     sockets.push(ws2);
@@ -170,5 +170,22 @@ describe("Bridge", () => {
 
     expect(bridge2.portConflict).not.toBeNull();
     await expect(bridge2.call("ping")).rejects.toThrow(/already in use/i);
+  });
+
+  test("WebSocket connection to /other is refused", async () => {
+    const bridge = new Bridge();
+    bridges.push(bridge);
+    bridge.start(0);
+
+    const refused = await new Promise<boolean>((resolve) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/other`);
+      sockets.push(ws);
+      ws.addEventListener("open", () => resolve(false));
+      ws.addEventListener("error", () => resolve(true));
+      ws.addEventListener("close", () => resolve(true));
+    });
+
+    expect(refused).toBe(true);
+    expect(bridge.isConnected).toBe(false);
   });
 });

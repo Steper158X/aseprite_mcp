@@ -52,7 +52,7 @@ return function(util)
     local cm = util.parseColorMode(params and params.colorMode)
     local sprite = Sprite(math.floor(w), math.floor(h), cm)
     app.activeSprite = sprite
-    app.refresh()
+    util.refresh()
     return handlers.get_sprite_info({})
   end
 
@@ -94,7 +94,7 @@ return function(util)
     app.transaction("MCP: draw_pixels", function()
       util.commitCanvas(sprite, layer, frame, img, cel)
     end)
-    app.refresh()
+    util.refresh()
 
     return {
       drawn = drawn,

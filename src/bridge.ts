@@ -1,4 +1,4 @@
-import type { Server, ServerWebSocket } from "bun";
+import type { ServerWebSocket } from "bun";
 import {
   type BridgeResponse,
   createRequestId,
@@ -6,6 +6,12 @@ import {
   type HelloInfo,
   notConnectedMessage,
 } from "./protocol.ts";
+import {
+  type BridgeTransport,
+  type HttpServerHandle,
+  startHttpServer,
+  type WsClientData,
+} from "./server.ts";
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -21,11 +27,11 @@ export interface BridgeStatus {
   hello: HelloInfo | null;
 }
 
-export class Bridge {
-  private server: Server<undefined> | null = null;
-  private client: ServerWebSocket<undefined> | null = null;
+export class Bridge implements BridgeTransport {
+  private serverHandle: HttpServerHandle | null = null;
+  private client: ServerWebSocket<WsClientData> | null = null;
   private helloInfo: HelloInfo | null = null;
-  private configuredPort = DEFAULT_BRIDGE_PORT;
+  private listeningPort = DEFAULT_BRIDGE_PORT;
   private _portConflict: string | null = null;
   private pending = new Map<string, PendingRequest>();
   private connectionWaiters = new Set<() => void>();
@@ -40,63 +46,36 @@ export class Bridge {
   }
 
   get port(): number {
-    return this.server?.port ?? this.configuredPort;
+    return this.serverHandle?.port ?? this.listeningPort;
   }
 
   get portConflict(): string | null {
     return this._portConflict;
   }
 
+  setListeningPort(port: number): void {
+    this.listeningPort = port;
+  }
+
+  setPortConflict(conflict: string | null): void {
+    this._portConflict = conflict;
+  }
+
   getStatus(): BridgeStatus {
     return {
       connected: this.isConnected,
       port: this.port,
-      url: `ws://127.0.0.1:${this.port}`,
+      url: `ws://127.0.0.1:${this.port}/aseprite`,
       portConflict: this._portConflict,
       hello: this.helloInfo,
     };
   }
 
   start(port = DEFAULT_BRIDGE_PORT): void {
-    if (this.server) return;
-    this.configuredPort = port;
+    if (this.serverHandle) return;
+    this.listeningPort = port;
     this._portConflict = null;
-
-    try {
-      this.server = Bun.serve<undefined>({
-        hostname: "127.0.0.1",
-        port,
-        fetch(req, server) {
-          if (server.upgrade(req)) {
-            return;
-          }
-          return new Response("Aseprite MCP Bridge WebSocket endpoint", { status: 426 });
-        },
-        websocket: {
-          idleTimeout: 960,
-          sendPings: true,
-          open: (ws) => {
-            this.handleOpen(ws);
-          },
-          message: (ws, message) => {
-            this.handleMessage(ws, message);
-          },
-          close: (ws) => {
-            this.handleClose(ws);
-          },
-        },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const code =
-        err && typeof err === "object" && "code" in err ? String((err as { code?: unknown }).code) : "";
-      if (code === "EADDRINUSE" || /EADDRINUSE|in use|listen/i.test(msg)) {
-        this._portConflict = `Port 127.0.0.1:${port} is already in use (another Aseprite MCP server may already be running). Stop the other server or set ASEPRITE_MCP_PORT. (${msg})`;
-        console.error(`[aseprite-mcp] ${this._portConflict}`);
-        return;
-      }
-      throw err;
-    }
+    this.serverHandle = startHttpServer({ port, bridge: this });
   }
 
   stop(): void {
@@ -112,9 +91,9 @@ export class Bridge {
         // ignore close errors on shutdown
       }
     }
-    if (this.server) {
-      this.server.stop(true);
-      this.server = null;
+    if (this.serverHandle) {
+      this.serverHandle.stop();
+      this.serverHandle = null;
     }
   }
 
@@ -178,7 +157,7 @@ export class Bridge {
     });
   }
 
-  private handleOpen(ws: ServerWebSocket<undefined>): void {
+  attach(ws: ServerWebSocket<WsClientData>): void {
     const previous = this.client;
     if (previous && previous !== ws) {
       this.rejectAllPending(new Error("Replaced by newer Aseprite connection"));
@@ -197,7 +176,7 @@ export class Bridge {
     }
   }
 
-  private handleMessage(ws: ServerWebSocket<undefined>, message: string | Buffer<ArrayBuffer>): void {
+  onMessage(ws: ServerWebSocket<WsClientData>, message: string | Buffer<ArrayBuffer>): void {
     if (ws !== this.client) return;
 
     const text = typeof message === "string" ? message : this.textDecoder.decode(message);
@@ -237,7 +216,7 @@ export class Bridge {
     }
   }
 
-  private handleClose(ws: ServerWebSocket<undefined>): void {
+  detach(ws: ServerWebSocket<WsClientData>): void {
     if (this.client !== ws) return;
     this.client = null;
     this.helloInfo = null;

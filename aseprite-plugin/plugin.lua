@@ -1,5 +1,6 @@
 local PLUGIN_VERSION = "0.1.0"
-local DEFAULT_URL = "ws://127.0.0.1:7531"
+local DEFAULT_URL = "ws://127.0.0.1:7777/aseprite"
+local LEGACY_DEFAULT_URL = "ws://127.0.0.1:7531"
 
 -- Keep WebSocket in module scope so Lua GC never collects an active bridge socket.
 local ws = nil
@@ -15,7 +16,7 @@ end
 
 local function getBridgeUrl(plugin)
   local url = plugin.preferences.url
-  if type(url) ~= "string" or url == "" then
+  if type(url) ~= "string" or url == "" or url == LEGACY_DEFAULT_URL or url == (LEGACY_DEFAULT_URL .. "/") then
     url = DEFAULT_URL
     plugin.preferences.url = url
   end

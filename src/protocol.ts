@@ -1,4 +1,4 @@
-export const DEFAULT_BRIDGE_PORT = 7531;
+export const DEFAULT_BRIDGE_PORT = 7777;
 
 export interface BridgeRequest {
   id: string;
@@ -39,7 +39,7 @@ export function getBridgePort(envValue = process.env.ASEPRITE_MCP_PORT): number 
 }
 
 export function notConnectedMessage(port = DEFAULT_BRIDGE_PORT): string {
-  return `Aseprite is not connected. Open Aseprite with the 'Aseprite MCP Bridge' extension installed (it auto-connects to ws://127.0.0.1:${port}).`;
+  return `Aseprite is not connected. Open Aseprite with the 'Aseprite MCP Bridge' extension installed (it auto-connects to ws://127.0.0.1:${port}/aseprite).`;
 }
 
 /** Lua's json.encode turns an empty table into `{}` rather than `[]`. */

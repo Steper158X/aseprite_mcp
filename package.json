@@ -8,6 +8,7 @@
     "start": "bun run src/index.ts",
     "test": "bun test",
     "install-plugin": "bun run scripts/install-plugin.ts",
+    "package-plugin": "bun run scripts/package-plugin.ts",
     "cli": "bun run src/cli.ts",
     "smoke": "bun run scripts/mcp-smoke.ts",
     "typecheck": "bunx tsc --noEmit"

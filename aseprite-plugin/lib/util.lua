@@ -188,4 +188,10 @@ function util.serializeLayers(layers)
   return out
 end
 
+function util.refresh()
+  if app.isUIAvailable then
+    app.refresh()
+  end
+end
+
 return util
