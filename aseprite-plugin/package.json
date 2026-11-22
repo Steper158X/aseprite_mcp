@@ -1,0 +1,16 @@
+{
+  "name": "aseprite-mcp-bridge",
+  "displayName": "Aseprite MCP Bridge",
+  "description": "Live bridge between an MCP server and Aseprite",
+  "version": "0.1.0",
+  "author": {
+    "name": "StepZ"
+  },
+  "contributes": {
+    "scripts": [
+      {
+        "path": "./plugin.lua"
+      }
+    ]
+  }
+}
