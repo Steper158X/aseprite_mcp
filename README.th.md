@@ -10,10 +10,27 @@
 
 ## ตัวอย่างผลงาน (Showcase)
 
-| Animation น้องแมวส้ม (32×32, 4 เฟรม) | ห้องเล่นเปียโน Isometric แสนอบอุ่น (96×96, 6 เลเยอร์) |
+| Animation น้องแมวส้ม (32×32, 4 เฟรม) | Animation ห้องเล่นเปียโน Isometric (96×96, 6 เลเยอร์, 4 เฟรม) |
 | :---: | :---: |
-| ![ตัวอย่าง Animation แมวส้มที่วาดสดผ่าน Aseprite MCP](docs/demo-orange-cat.gif) | ![ตัวอย่างห้องเปียโน Isometric แสงแดดอบอุ่นที่วาดสดผ่าน Aseprite MCP](docs/demo-piano-room.png) |
-| Animation แมวส้มยิ้มแฉ่ง 4 เฟรม (`160 ms/frame`) วาดด้วย `draw_pixel_art`, `add_frame`, `set_frame_duration` | ฉากห้องเปียโน Isometric 2:1 แยก 6 เลเยอร์ (`Backdrop`, `Room Shell`, `Window & Decor`, `Piano & Bench`, `Pianist`, `Sunlight` โหมด screen) วาดด้วย `draw_line`, `fill_area`, `draw_pixel_art`, `set_layer_props` |
+| ![ตัวอย่าง Animation แมวส้มที่วาดสดผ่าน Aseprite MCP](docs/demo-orange-cat.gif) | ![ตัวอย่าง Animation ห้องเล่นเปียโน Isometric ที่วาดสดผ่าน Aseprite MCP](docs/demo-piano-room.gif) |
+| Animation แมวส้มยิ้มแฉ่ง 4 เฟรม (`160 ms/frame`) วาดด้วย `draw_pixel_art`, `add_frame`, `set_frame_duration` | ฉากห้องเปียโน Isometric 2:1 เคลื่อนไหว 4 เฟรม (`220 ms/frame`) คนเล่นโยกตัวตามจังหวะ ตัวโน้ตลอย โคมไฟกะพริบเบาๆ และละอองฝุ่นลอยในลำแสงแดด |
+
+### โครงสร้าง Layout & การแยก Layer (ห้องเล่นเปียโน)
+
+วาดเรียงทีละเลเยอร์จากโครงห้องไปจนถึงบรรยากาศแสงแดด — สามารถเปิด-ปิดหรือแก้ไขแยกแต่ละเลเยอร์ใน Aseprite ได้ทันที:
+
+| 1. `Backdrop` + `Room Shell` | 2. + `Window & Decor` | 3. + `Piano & Bench` | 4. + `Pianist` | 5. + `Sunlight` *(สมบูรณ์)* |
+| :---: | :---: | :---: | :---: | :---: |
+| ![ขั้นที่ 1: โครงห้อง](docs/layers/01-room-shell.png) | ![ขั้นที่ 2: หน้าต่างและของแต่งห้อง](docs/layers/02-window-decor.png) | ![ขั้นที่ 3: เปียโนและเก้าอี้](docs/layers/03-piano-bench.png) | ![ขั้นที่ 4: คนเล่นเปียโน](docs/layers/04-pianist.png) | ![ขั้นที่ 5: แสงแดด](docs/layers/05-sunlight.png) |
+
+| ชื่อ Layer | คุณสมบัติ | รายละเอียด |
+| --- | --- | --- |
+| `Backdrop` | `opacity: 255`, `normal` | พื้นหลังสีม่วงหม่นเข้ม (`#231f2b`) ขับให้ห้องดูโดดเด่นแบบไดโอรามา |
+| `Room Shell` | `opacity: 255`, `normal` | โครงผนังสีครีม 2:1 Isometric, บัวพื้น, ลายไม้กระดาน และฐานตัดขอบ |
+| `Window & Decor` | `opacity: 255`, `normal` | หน้าต่างแสงแดดพร้อมผ้าม่าน, พรมทอ, ต้นไม้มุมห้อง, กรอบรูป และชั้นหนังสือ |
+| `Piano & Bench` | `opacity: 255`, `normal` | เปียโนไม้อัปไรต์ (คีย์, โน้ตเพลง, แป้นเหยียบ, โคมไฟ) และเก้าอี้สี่เหลี่ยมเบาะแดง |
+| `Pianist` | `opacity: 255`, `normal` | คนเล่นเปียโนโยกตัวและขยับมือตามคีย์ 4 เฟรม พร้อมตัวโน้ตลอยขึ้น |
+| `Sunlight` | `opacity: 55`, `screen` | ลำแสงแดดสีทองส่องเฉียงจากหน้าต่าง, แสงโคมไฟ และละอองฝุ่นลอยเคลื่อนไหว |
 
 ---
 

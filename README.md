@@ -10,10 +10,27 @@ It also works **even when Aseprite is closed** (Headless mode via `ASEPRITE_PATH
 
 ## Showcase
 
-| Animated Sprite (32×32, 4 Frames) | Isometric Cozy Piano Room (96×96, 6 Layers) |
+| Animated Sprite (32×32, 4 Frames) | Animated Cozy Piano Room (96×96, 6 Layers, 4 Frames) |
 | :---: | :---: |
-| ![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif) | ![Cozy Isometric Piano Room created live via Aseprite MCP](docs/demo-piano-room.png) |
-| 4-frame smiling orange tabby (`160 ms/frame`, 8× display) built with `draw_pixel_art`, `add_frame`, `set_frame_duration` | Multi-layer 2:1 isometric diorama (`Backdrop`, `Room Shell`, `Window & Decor`, `Piano & Bench`, `Pianist`, `Sunlight` screen-blend sunbeams) built with `draw_line`, `fill_area`, `draw_pixel_art`, `set_layer_props` |
+| ![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif) | ![Animated Cozy Isometric Piano Room created live via Aseprite MCP](docs/demo-piano-room.gif) |
+| 4-frame smiling orange tabby (`160 ms/frame`, 8× display) built with `draw_pixel_art`, `add_frame`, `set_frame_duration` | 4-frame cozy sunlit 2:1 isometric diorama (`220 ms/frame`, 4× display) with swaying pianist, floating musical notes, pulsing lamp, and drifting dust motes |
+
+### Layer & Layout Breakdown (Piano Room)
+
+Built progressively from background to atmosphere — every layer stays cleanly editable in Aseprite:
+
+| 1. `Backdrop` + `Room Shell` | 2. + `Window & Decor` | 3. + `Piano & Bench` | 4. + `Pianist` | 5. + `Sunlight` *(Final)* |
+| :---: | :---: | :---: | :---: | :---: |
+| ![Step 1: Room Shell](docs/layers/01-room-shell.png) | ![Step 2: Window & Decor](docs/layers/02-window-decor.png) | ![Step 3: Piano & Bench](docs/layers/03-piano-bench.png) | ![Step 4: Pianist](docs/layers/04-pianist.png) | ![Step 5: Sunlight](docs/layers/05-sunlight.png) |
+
+| Layer | Properties | Contents |
+| --- | --- | --- |
+| `Backdrop` | `opacity: 255`, `normal` | Deep plum-slate backdrop (`#231f2b`) framing the isometric diorama |
+| `Room Shell` | `opacity: 255`, `normal` | 2:1 isometric cream walls, baseboards, oak wood planks, and cutaway slab |
+| `Window & Decor` | `opacity: 255`, `normal` | Sunlit window with curtains, woven floor rug, corner plant, sunset art, and bookshelf |
+| `Piano & Bench` | `opacity: 255`, `normal` | Upright mahogany piano (keys, sheet music, brass pedals, lamp) and square cushioned stool |
+| `Pianist` | `opacity: 255`, `normal` | Seated character swaying with the melody across 4 frames + floating musical notes |
+| `Sunlight` | `opacity: 55`, `screen` | Diagonal golden sunbeams from the window, lamp glow halo, and drifting dust motes |
 
 ---
 
