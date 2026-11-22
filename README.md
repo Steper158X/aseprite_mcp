@@ -8,6 +8,19 @@ You do **not** need to know programming to follow this guide. Work through the s
 
 ---
 
+## Examples of what this can make
+
+| Animated Sprite (32×32, 4 Frames) | Animated Cozy Piano Room (96×96, 6 Layers, 4 Frames) |
+| :---: | :---: |
+| ![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif) | ![Animated Cozy Isometric Piano Room created live via Aseprite MCP](docs/demo-piano-room.gif) |
+| 4-frame smiling orange tabby | 4-frame isometric piano room with layers |
+
+| 1. Room shell | 2. Window & decor | 3. Piano & bench | 4. Pianist | 5. Sunlight |
+| :---: | :---: | :---: | :---: | :---: |
+| ![Step 1](docs/layers/01-room-shell.png) | ![Step 2](docs/layers/02-window-decor.png) | ![Step 3](docs/layers/03-piano-bench.png) | ![Step 4](docs/layers/04-pianist.png) | ![Step 5](docs/layers/05-sunlight.png) |
+
+---
+
 ## What you will set up
 
 Three pieces work together:
@@ -404,19 +417,6 @@ Add these under the `"env"` block in your MCP config only if you need them:
 | `ASEPRITE_MCP_PORT` | `7777` | Preview and bridge port |
 | `ASEPRITE_MCP_OPEN_PREVIEW` | `0` | Set `1` to open the preview page when the server starts |
 | `ASEPRITE_MCP_ALLOW_LUA` | `0` | Set `1` to allow the advanced `run_lua` tool |
-
----
-
-## Examples of what this can make
-
-| Animated Sprite (32×32, 4 Frames) | Animated Cozy Piano Room (96×96, 6 Layers, 4 Frames) |
-| :---: | :---: |
-| ![Animated Orange Cat created live via Aseprite MCP](docs/demo-orange-cat.gif) | ![Animated Cozy Isometric Piano Room created live via Aseprite MCP](docs/demo-piano-room.gif) |
-| 4-frame smiling orange tabby | 4-frame isometric piano room with layers |
-
-| 1. Room shell | 2. Window & decor | 3. Piano & bench | 4. Pianist | 5. Sunlight |
-| :---: | :---: | :---: | :---: | :---: |
-| ![Step 1](docs/layers/01-room-shell.png) | ![Step 2](docs/layers/02-window-decor.png) | ![Step 3](docs/layers/03-piano-bench.png) | ![Step 4](docs/layers/04-pianist.png) | ![Step 5](docs/layers/05-sunlight.png) |
 
 ---
 

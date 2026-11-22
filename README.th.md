@@ -8,6 +8,19 @@
 
 ---
 
+## ตัวอย่างผลงาน
+
+| Animation แมวส้ม (32×32, 4 เฟรม) | ห้องเปียโน Isometric (96×96, 6 เลเยอร์, 4 เฟรม) |
+| :---: | :---: |
+| ![ตัวอย่างแมวส้ม](docs/demo-orange-cat.gif) | ![ตัวอย่างห้องเปียโน](docs/demo-piano-room.gif) |
+| แมวส้มยิ้มแฉ่ง 4 เฟรม | ห้องเปียโนแยกเลเยอร์ |
+
+| 1. โครงห้อง | 2. หน้าต่างและของแต่ง | 3. เปียโน | 4. คนเล่น | 5. แสงแดด |
+| :---: | :---: | :---: | :---: | :---: |
+| ![ขั้น 1](docs/layers/01-room-shell.png) | ![ขั้น 2](docs/layers/02-window-decor.png) | ![ขั้น 3](docs/layers/03-piano-bench.png) | ![ขั้น 4](docs/layers/04-pianist.png) | ![ขั้น 5](docs/layers/05-sunlight.png) |
+
+---
+
 ## สิ่งที่คุณจะติดตั้งมี 3 ส่วน
 
 1. **Aseprite** — โปรแกรมวาด Pixel Art (ต้องมีลิขสิทธิ์/ซื้อไว้แล้ว)
@@ -402,19 +415,6 @@ npx -y @steper158x/aseprite_mcp setup --cursor
 | `ASEPRITE_MCP_PORT` | `7777` | พอร์ตพรีวิวและการเชื่อมต่อ |
 | `ASEPRITE_MCP_OPEN_PREVIEW` | `0` | ตั้ง `1` เพื่อเปิดหน้าพรีวิวตอนเซิร์ฟเวอร์เริ่ม |
 | `ASEPRITE_MCP_ALLOW_LUA` | `0` | ตั้ง `1` เพื่อเปิดเครื่องมือขั้นสูง `run_lua` |
-
----
-
-## ตัวอย่างผลงาน
-
-| Animation แมวส้ม (32×32, 4 เฟรม) | ห้องเปียโน Isometric (96×96, 6 เลเยอร์, 4 เฟรม) |
-| :---: | :---: |
-| ![ตัวอย่างแมวส้ม](docs/demo-orange-cat.gif) | ![ตัวอย่างห้องเปียโน](docs/demo-piano-room.gif) |
-| แมวส้มยิ้มแฉ่ง 4 เฟรม | ห้องเปียโนแยกเลเยอร์ |
-
-| 1. โครงห้อง | 2. หน้าต่างและของแต่ง | 3. เปียโน | 4. คนเล่น | 5. แสงแดด |
-| :---: | :---: | :---: | :---: | :---: |
-| ![ขั้น 1](docs/layers/01-room-shell.png) | ![ขั้น 2](docs/layers/02-window-decor.png) | ![ขั้น 3](docs/layers/03-piano-bench.png) | ![ขั้น 4](docs/layers/04-pianist.png) | ![ขั้น 5](docs/layers/05-sunlight.png) |
 
 ---
 
