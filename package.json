@@ -1,0 +1,25 @@
+{
+  "name": "aseprite_mcp",
+  "version": "0.1.0",
+  "description": "Local WebSocket bridge MCP server for live drawing in Aseprite",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "install-plugin": "bun run scripts/install-plugin.ts",
+    "cli": "bun run src/cli.ts",
+    "smoke": "bun run scripts/mcp-smoke.ts",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  }
+}

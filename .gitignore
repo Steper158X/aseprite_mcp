@@ -1,0 +1,28 @@
+# Dependencies
+node_modules
+
+# Build / outputs
+out
+dist
+*.tgz
+
+# Temp files
+*.png
+*.tmp
+
+# Logs
+logs
+*.log
+
+# Env
+.env
+.env.*.local
+.env.local
+
+# Caches
+.cache
+*.tsbuildinfo
+
+# OS / IDE
+.DS_Store
+.idea
