@@ -10,7 +10,7 @@ export function registerStatusTools(server: McpServer, router: Router): void {
         "Check Aseprite MCP connection status, active backend mode (live/headless), WebSocket/Preview URLs, and any port conflict. Works even when Aseprite is not connected.",
     },
     async () => {
-      const status = router.getStatus();
+      const status = await router.getStatus();
       return jsonOk(status.activeBackend ?? "none", status);
     },
   );

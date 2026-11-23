@@ -141,12 +141,11 @@ export class Router {
   }
 
   resolveBackend(): Backend {
-    if (this.bridge.portConflict) {
-      throw new Error(this.bridge.portConflict);
-    }
-
     const mode = this.getModeSetting();
+    const conflict = this.bridge.portConflict;
+
     if (mode === "live") {
+      if (conflict) throw new Error(conflict);
       if (this.live.isAvailable()) return this.live;
       throw new Error(notConnectedMessage(this.bridge.port));
     }
@@ -158,8 +157,10 @@ export class Router {
       );
     }
 
-    if (this.live.isAvailable()) return this.live;
+    // auto: prefer live when the bridge is usable; headless still works during port conflict
+    if (!conflict && this.live.isAvailable()) return this.live;
     if (this.headless?.isAvailable()) return this.headless;
+    if (conflict) throw new Error(conflict);
 
     throw new Error(
       `${notConnectedMessage(this.bridge.port)} Alternatively, set ASEPRITE_PATH to Aseprite.exe to enable headless mode.`,
@@ -171,6 +172,7 @@ export class Router {
     params: Record<string, unknown> = {},
     opts?: { mutating?: boolean; toolName?: string },
   ): Promise<{ mode: BackendKind; result: T }> {
+    await this.bridge.ensureListening();
     const backend = this.resolveBackend();
     const result = await backend.call<T>(method, params, opts);
 
@@ -198,6 +200,7 @@ export class Router {
     scale?: number;
     maxSize?: number;
   }): Promise<{ mode: BackendKind } & RenderedPreview> {
+    await this.bridge.ensureListening();
     const backend = this.resolveBackend();
     const rendered = await backend.render(opts);
     if (!rendered) {
@@ -206,21 +209,17 @@ export class Router {
     return { mode: backend.kind, ...rendered };
   }
 
-  getStatus() {
+  async getStatus() {
+    await this.bridge.ensureListening();
     const bridgeStatus = this.bridge.getStatus();
     const modeSetting = this.getModeSetting();
     const headlessAvailable = Boolean(this.headless?.isAvailable());
 
     let activeBackend: BackendKind | null = null;
-    if (!bridgeStatus.portConflict) {
-      if (modeSetting === "live" && this.live.isAvailable()) {
-        activeBackend = "live";
-      } else if (modeSetting === "headless" && headlessAvailable) {
-        activeBackend = "headless";
-      } else if (modeSetting === "auto") {
-        if (this.live.isAvailable()) activeBackend = "live";
-        else if (headlessAvailable) activeBackend = "headless";
-      }
+    try {
+      activeBackend = this.resolveBackend().kind;
+    } catch {
+      activeBackend = null;
     }
 
     return {

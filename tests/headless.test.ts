@@ -252,4 +252,39 @@ describe("Router mode selection", () => {
       rmSync(workdir, { recursive: true, force: true });
     }
   });
+
+  test("portConflict still allows headless in auto and headless modes", async () => {
+    const workdir = mkdtempSync(join(tmpdir(), "aseprite-router-conflict-"));
+    try {
+      const holder = new Bridge();
+      await holder.start(0);
+
+      const bridge = new Bridge();
+      await bridge.start(holder.port);
+      expect(bridge.portConflict).not.toBeNull();
+
+      const live = new LiveBackend(bridge, workdir);
+      const headless = new HeadlessBackend({
+        workdir,
+        runner: async () => ({ ok: true, result: { ok: true } }),
+      });
+
+      const autoRouter = new Router({ mode: "auto", bridge, live, headless });
+      expect(autoRouter.resolveBackend().kind).toBe("headless");
+      const autoStatus = await autoRouter.getStatus();
+      expect(autoStatus.activeBackend).toBe("headless");
+      expect(autoStatus.portConflict).not.toBeNull();
+
+      const headlessRouter = new Router({ mode: "headless", bridge, live, headless });
+      expect(headlessRouter.resolveBackend().kind).toBe("headless");
+
+      const liveRouter = new Router({ mode: "live", bridge, live, headless });
+      expect(() => liveRouter.resolveBackend()).toThrow(/already in use/i);
+
+      holder.stop();
+      bridge.stop();
+    } finally {
+      rmSync(workdir, { recursive: true, force: true });
+    }
+  });
 });

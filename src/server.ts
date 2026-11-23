@@ -190,7 +190,7 @@ export async function startHttpServer(options: StartHttpServerOptions): Promise<
         : "";
 
     if (code === "EADDRINUSE" || /EADDRINUSE|in use|listen/i.test(msg)) {
-      const conflict = `Port 127.0.0.1:${port} is already in use (another Aseprite MCP server may already be running). Stop the other server or set ASEPRITE_MCP_PORT. (${msg})`;
+      const conflict = `Port 127.0.0.1:${port} is already in use (another node aseprite-mcp / dist/bin.js process is likely listening). Refresh or stop the other MCP server in Cursor, kill the orphan node process, or set ASEPRITE_MCP_PORT. Closing Aseprite alone does not free this port. (${msg})`;
       console.error(`[aseprite-mcp] ${conflict}`);
       bridge.setListeningPort(port);
       bridge.setPortConflict(conflict);

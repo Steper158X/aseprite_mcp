@@ -6,7 +6,6 @@ import { HeadlessBackend } from "./headless.ts";
 import { PreviewHub } from "./preview.ts";
 import { openUrlInBrowser } from "./process-utils.ts";
 import { getBridgePort } from "./protocol.ts";
-import { startHttpServer } from "./server.ts";
 import { registerDrawTools } from "./tools/draw.ts";
 import { registerFrameTools } from "./tools/frames.ts";
 import { registerInspectTools } from "./tools/inspect.ts";
@@ -20,7 +19,7 @@ export async function startMcpServer(): Promise<void> {
   const port = getBridgePort();
   const bridge = new Bridge();
   const preview = new PreviewHub();
-  const serverHandle = await startHttpServer({ port, bridge, preview });
+  await bridge.start(port, { preview });
 
   const live = new LiveBackend(bridge);
   const headless = new HeadlessBackend();
@@ -39,10 +38,10 @@ export async function startMcpServer(): Promise<void> {
     preview.publishFrame(frame);
   });
 
-  preview.publishStatus(router.getStatus());
+  preview.publishStatus(await router.getStatus());
 
   bridge.onConnectionChange(() => {
-    preview.publishStatus(router.getStatus());
+    void router.getStatus().then((status) => preview.publishStatus(status));
   });
 
   const triggerManualRender = async () => {
@@ -111,7 +110,6 @@ export async function startMcpServer(): Promise<void> {
       // ignore close errors
     }
     bridge.stop();
-    serverHandle.stop();
     process.exit(0);
   };
 
@@ -122,12 +120,12 @@ export async function startMcpServer(): Promise<void> {
   };
 
   await mcp.connect(transport);
-  const previewUrl = `http://127.0.0.1:${serverHandle.port}/`;
+  const previewUrl = `http://127.0.0.1:${bridge.port}/`;
   console.error(
-    `[aseprite-mcp] MCP server ready (ws://127.0.0.1:${serverHandle.port}/aseprite, preview ${previewUrl})`,
+    `[aseprite-mcp] MCP server ready (ws://127.0.0.1:${bridge.port}/aseprite, preview ${previewUrl})`,
   );
 
-  if (process.env.ASEPRITE_MCP_OPEN_PREVIEW === "1" && !serverHandle.portConflict) {
+  if (process.env.ASEPRITE_MCP_OPEN_PREVIEW === "1" && !bridge.portConflict) {
     openUrlInBrowser(previewUrl);
   }
 }

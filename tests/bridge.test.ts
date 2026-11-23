@@ -188,6 +188,26 @@ describe("Bridge", () => {
     expect(bridge2.port).not.toBe(bridge1.port);
   });
 
+  test("ensureListening retries bind after the conflicting server stops", async () => {
+    const bridge1 = new Bridge();
+    bridges.push(bridge1);
+    await bridge1.start(0);
+    const contestedPort = bridge1.port;
+
+    const bridge2 = new Bridge();
+    bridges.push(bridge2);
+    await bridge2.start(contestedPort);
+    expect(bridge2.portConflict).not.toBeNull();
+    expect(bridge2.portConflict).toMatch(/node|MCP server|dist[/\\]bin/i);
+
+    bridge1.stop();
+    bridges.splice(bridges.indexOf(bridge1), 1);
+
+    await bridge2.ensureListening();
+    expect(bridge2.portConflict).toBeNull();
+    expect(bridge2.port).toBe(contestedPort);
+  });
+
   test("WebSocket connection to /other is refused", async () => {
     const bridge = new Bridge();
     bridges.push(bridge);

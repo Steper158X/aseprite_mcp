@@ -8,9 +8,14 @@ import {
 import {
   type BridgeTransport,
   type HttpServerHandle,
+  type PreviewTransport,
   startHttpServer,
 } from "./server.ts";
 import type { AppWebSocket } from "./ws-types.ts";
+
+export interface BridgeStartOptions {
+  preview?: PreviewTransport;
+}
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -38,6 +43,8 @@ export class Bridge implements BridgeTransport {
   private helloInfo: HelloInfo | null = null;
   private listeningPort = DEFAULT_BRIDGE_PORT;
   private _portConflict: string | null = null;
+  private preview: PreviewTransport | undefined;
+  private ensurePromise: Promise<void> | null = null;
   private pending = new Map<string, PendingRequest>();
   private connectionWaiters = new Set<ConnectionWaiter>();
   private eventListeners = new Set<(event: string, data: Record<string, unknown>) => void>();
@@ -78,8 +85,11 @@ export class Bridge implements BridgeTransport {
     };
   }
 
-  async start(port = DEFAULT_BRIDGE_PORT): Promise<void> {
+  async start(port = DEFAULT_BRIDGE_PORT, options?: BridgeStartOptions): Promise<void> {
     // A prior EADDRINUSE soft-fail leaves a handle with server=null; allow retry.
+    if (options?.preview !== undefined) {
+      this.preview = options.preview;
+    }
     if (this.serverHandle?.server) return;
     if (this.serverHandle) {
       this.serverHandle.stop();
@@ -87,7 +97,21 @@ export class Bridge implements BridgeTransport {
     }
     this.listeningPort = port;
     this._portConflict = null;
-    this.serverHandle = await startHttpServer({ port, bridge: this });
+    this.serverHandle = await startHttpServer({
+      port,
+      bridge: this,
+      preview: this.preview,
+    });
+  }
+
+  /** Retry listen after a soft-fail when the port may have been freed. */
+  async ensureListening(): Promise<void> {
+    if (this.serverHandle?.server) return;
+    if (this.ensurePromise) return this.ensurePromise;
+    this.ensurePromise = this.start(this.listeningPort).finally(() => {
+      this.ensurePromise = null;
+    });
+    return this.ensurePromise;
   }
 
   stop(): void {
@@ -96,6 +120,7 @@ export class Bridge implements BridgeTransport {
     const active = this.client;
     this.client = null;
     this.helloInfo = null;
+    this._portConflict = null;
     if (active) {
       try {
         active.close(1001, "Server stopping");

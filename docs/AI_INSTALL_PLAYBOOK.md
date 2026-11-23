@@ -271,6 +271,7 @@ If status fails, go to §9 — do not declare setup finished.
 | MCP server won’t start | Confirm `dist/bin.js` path in config is absolute and correct; reopen AI app |
 | Extension missing / Disconnected | Preferences → Extensions → enable bridge → restart Aseprite → File → MCP Bridge… → Connect while AI app is open |
 | Port 7777 in use / connect fails after refresh | Almost always **two** `aseprite` MCP entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan `node …/dist/bin.js`. Fix: `node dist/bin.js setup --cursor` (clears the duplicate), kill orphans (`Get-CimInstance Win32_Process` / `pgrep -af aseprite_mcp`), then refresh MCP once. Do **not** keep `aseprite` in both Cursor configs. Last resort: `ASEPRITE_MCP_PORT=7778` in MCP `env` (Bridge must use the same port). |
+| `get_status` still says port in use after closing Aseprite | Closing Aseprite does **not** free 7777 (the MCP `node …/dist/bin.js` process owns it). If another MCP instance died, the current one retries bind on the next `get_status` / tool call. If conflict persists, refresh the aseprite MCP server in Cursor or kill the orphan node process. |
 | Headless does nothing | Fix `ASEPRITE_PATH` to the **executable**, not a folder |
 | Preview blank | Start a chat that loads MCP, then reopen http://127.0.0.1:7777/ |
 | `npm install` / `build` fails | Stay in project root; check Node ≥ 20; fix network/registry; read full error before guessing |
