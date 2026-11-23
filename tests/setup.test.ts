@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeAsepritePath } from "../src/setup.ts";
+import {
+  cursorConfigTargets,
+  normalizeAsepritePath,
+  removeAsepriteFromMcpConfig,
+} from "../src/setup.ts";
 
 describe("normalizeAsepritePath", () => {
   test("returns null for missing paths", () => {
@@ -42,6 +46,54 @@ describe("normalizeAsepritePath", () => {
       expect(normalizeAsepritePath(app)).toBe(inner);
     } finally {
       rmSync(app, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("cursorConfigTargets", () => {
+  test("prefers project .cursor/mcp.json inside a project tree", () => {
+    const dir = join(tmpdir(), `aseprite-cursor-targets-${Date.now()}`);
+    mkdirSync(join(dir, ".cursor"), { recursive: true });
+    writeFileSync(join(dir, "package.json"), "{}");
+    try {
+      const targets = cursorConfigTargets(dir);
+      expect(targets.primary).toBe(join(dir, ".cursor", "mcp.json"));
+      expect(targets.alternate).toContain(join(".cursor", "mcp.json"));
+      expect(targets.alternate).not.toBe(targets.primary);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("removeAsepriteFromMcpConfig", () => {
+  test("removes only aseprite and leaves other servers", () => {
+    const dir = join(tmpdir(), `aseprite-mcp-clear-${Date.now()}`);
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, "mcp.json");
+    writeFileSync(
+      file,
+      JSON.stringify(
+        {
+          mcpServers: {
+            aseprite: { command: "node", args: ["bin.js"] },
+            other: { command: "echo" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    try {
+      expect(removeAsepriteFromMcpConfig(file)).toBe(true);
+      const next = JSON.parse(readFileSync(file, "utf8")) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(next.mcpServers.aseprite).toBeUndefined();
+      expect(next.mcpServers.other).toEqual({ command: "echo" });
+      expect(removeAsepriteFromMcpConfig(file)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

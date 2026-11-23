@@ -229,6 +229,7 @@ If the AI app cannot find `node`, set `"command"` to the full path from `where.e
 
 - Re-run setup from **inside the project folder**.
 - For Cursor, project config is `.cursor/mcp.json`; global is `~/.cursor/mcp.json`.
+- `setup --cursor` writes **one** of those paths and **removes** `aseprite` from the other, so Cursor does not spawn two servers on port 7777.
 - Use `--print` first when unsure; show the user the snippet before writing if they are anxious.
 
 ---
@@ -269,7 +270,7 @@ If status fails, go to §9 — do not declare setup finished.
 | `node` not found | Reinstall Node LTS → new terminal → on Windows reboot once → if MCP still fails, use full path to `node.exe` as `command` |
 | MCP server won’t start | Confirm `dist/bin.js` path in config is absolute and correct; reopen AI app |
 | Extension missing / Disconnected | Preferences → Extensions → enable bridge → restart Aseprite → File → MCP Bridge… → Connect while AI app is open |
-| Port 7777 in use | Only one client should run this server; or set `ASEPRITE_MCP_PORT` to `7778` in MCP `env` |
+| Port 7777 in use / connect fails after refresh | Almost always **two** `aseprite` MCP entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan `node …/dist/bin.js`. Fix: `node dist/bin.js setup --cursor` (clears the duplicate), kill orphans (`Get-CimInstance Win32_Process` / `pgrep -af aseprite_mcp`), then refresh MCP once. Do **not** keep `aseprite` in both Cursor configs. Last resort: `ASEPRITE_MCP_PORT=7778` in MCP `env` (Bridge must use the same port). |
 | Headless does nothing | Fix `ASEPRITE_PATH` to the **executable**, not a folder |
 | Preview blank | Start a chat that loads MCP, then reopen http://127.0.0.1:7777/ |
 | `npm install` / `build` fails | Stay in project root; check Node ≥ 20; fix network/registry; read full error before guessing |

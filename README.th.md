@@ -199,7 +199,7 @@ node dist/bin.js setup --print
 จากโฟลเดอร์โปรเจกต์:
 
 ```bash
-# Cursor (เขียน .cursor/mcp.json ในโฟลเดอร์ปัจจุบัน หรือ ~/.cursor/mcp.json)
+# Cursor (เขียน .cursor/mcp.json ของโปรเจกต์ และลบ aseprite ออกจาก ~/.cursor/mcp.json เพื่อไม่ให้รันเซิร์ฟเวอร์ซ้ำ)
 node dist/bin.js setup --cursor
 
 # Claude Desktop
@@ -408,7 +408,7 @@ npx -y @steper158x/aseprite_mcp setup --cursor
 | ขึ้นว่าไม่รู้จักคำสั่ง `node` | ติดตั้ง Node.js LTS ใหม่ แล้วเปิดเทอร์มินัล**หน้าต่างใหม่** บน Windows อาจต้องรีสตาร์ทเครื่อง |
 | แอป AI หา `node` ไม่เจอ | ใน MCP config ใส่พาธเต็มของ `node.exe` (Windows: รัน `where.exe node` ใน PowerShell) |
 | ไม่เห็นปลั๊กอิน / Disconnected | **Edit → Preferences → Extensions** → เปิด **Aseprite MCP Bridge** → รีสตาร์ท Aseprite → **File → MCP Bridge... → Connect** ขณะเปิดแอป AI อยู่ |
-| พอร์ต 7777 ชนกัน | อาจเปิดแอป AI สองตัวที่ใช้เซิร์ฟเวอร์นี้พร้อมกัน ปิดอันหนึ่ง หรือใส่ `"ASEPRITE_MCP_PORT": "7778"` ใน `env` |
+| พอร์ต 7777 ชนกัน | มักมี `aseprite` สองที่ (`.cursor/mcp.json` ของโปรเจกต์ **และ** `~/.cursor/mcp.json`) หรือโปรเซส `node …/dist/bin.js` ค้าง รัน `setup --cursor` อีกครั้ง (จะลบรายการซ้ำ) ฆ่า orphan แล้วรีเฟรช MCP ครั้งเดียว สุดท้ายค่อยใส่ `"ASEPRITE_MCP_PORT": "7778"` ใน `env` |
 | โหมด Headless ไม่ทำงาน | เช็คว่า `ASEPRITE_PATH` ชี้ไปที่ไฟล์ `Aseprite.exe` / `aseprite` จริง ไม่ใช่โฟลเดอร์ |
 | setup เขียนไฟล์ผิดที่ | รัน setup จากในโฟลเดอร์โปรเจกต์ หรือใช้ `--print` ดูก่อนค่อยเขียน |
 | หน้าพรีวิวว่าง | ให้แชทที่โหลด MCP ทำงานก่อน แล้วเปิด http://127.0.0.1:7777/ อีกครั้ง |

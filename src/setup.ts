@@ -22,6 +22,7 @@ export interface SetupResult {
   pluginTarget: string | null;
   extensionPath: string | null;
   configsWritten: string[];
+  configsCleared: string[];
   mcpSnippet: Record<string, unknown>;
 }
 
@@ -231,13 +232,50 @@ function cursorUserConfigPath(): string {
   return join(homedir(), ".cursor", "mcp.json");
 }
 
-function cursorConfigPath(): string {
-  const cwd = process.cwd();
+/** Primary Cursor MCP file plus the alternate path that must not also define aseprite. */
+export function cursorConfigTargets(cwd = process.cwd()): { primary: string; alternate: string } {
   const projectLocal = join(cwd, ".cursor", "mcp.json");
+  const user = cursorUserConfigPath();
   if (existsSync(projectLocal) || looksLikeProjectDir(cwd)) {
-    return projectLocal;
+    return { primary: projectLocal, alternate: user };
   }
-  return cursorUserConfigPath();
+  return { primary: user, alternate: projectLocal };
+}
+
+function cursorConfigPath(): string {
+  return cursorConfigTargets().primary;
+}
+
+/** Remove only the aseprite server entry so Cursor cannot spawn a second bridge on port 7777. */
+export function removeAsepriteFromMcpConfig(filePath: string, dryRun = false): boolean {
+  if (!existsSync(filePath)) return false;
+
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+
+  const mcpServers =
+    existing.mcpServers && typeof existing.mcpServers === "object"
+      ? { ...(existing.mcpServers as Record<string, unknown>) }
+      : null;
+  if (!mcpServers || !Object.prototype.hasOwnProperty.call(mcpServers, "aseprite")) {
+    return false;
+  }
+
+  delete mcpServers.aseprite;
+  const next = { ...existing, mcpServers };
+
+  if (dryRun) {
+    console.log(`[dry-run] would remove aseprite from ${filePath}`);
+    console.log(JSON.stringify(next, null, 2));
+    return true;
+  }
+
+  writeFileSync(filePath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return true;
 }
 
 function claudeConfigPath(): string {
@@ -286,6 +324,7 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupResult>
   const serverEntry = buildMcpServerEntry(runtime.command, runtime.args, asepritePath);
   const mcpSnippet = { mcpServers: { aseprite: serverEntry } };
   const configsWritten: string[] = [];
+  const configsCleared: string[] = [];
 
   for (const client of clients) {
     if (client === "print") {
@@ -294,16 +333,19 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupResult>
       continue;
     }
 
-    const path =
-      client === "cursor"
-        ? cursorConfigPath()
-        : client === "claude"
-          ? claudeConfigPath()
-          : antigravityConfigPath();
+    if (client === "cursor") {
+      const { primary, alternate } = cursorConfigTargets();
+      mergeMcpConfig(primary, serverEntry, dryRun);
+      configsWritten.push(dryRun ? `(dry-run) ${primary}` : primary);
+      if (removeAsepriteFromMcpConfig(alternate, dryRun)) {
+        configsCleared.push(dryRun ? `(dry-run) ${alternate}` : alternate);
+      }
+      continue;
+    }
 
+    const path = client === "claude" ? claudeConfigPath() : antigravityConfigPath();
     mergeMcpConfig(path, serverEntry, dryRun);
-    if (!dryRun) configsWritten.push(path);
-    else configsWritten.push(`(dry-run) ${path}`);
+    configsWritten.push(dryRun ? `(dry-run) ${path}` : path);
   }
 
   console.log("\nSetup summary");
@@ -315,6 +357,10 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupResult>
     console.log("  Configs:");
     for (const c of configsWritten) console.log(`    - ${c}`);
   }
+  if (configsCleared.length) {
+    console.log("  Cleared duplicate aseprite from:");
+    for (const c of configsCleared) console.log(`    - ${c}`);
+  }
   console.log("\nNext steps:");
   console.log("  1. Restart Aseprite so the MCP Bridge extension loads.");
   console.log("  2. Refresh MCP servers in your AI client (or restart the app).");
@@ -325,6 +371,7 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupResult>
     pluginTarget,
     extensionPath,
     configsWritten,
+    configsCleared,
     mcpSnippet,
   };
 }
@@ -376,7 +423,8 @@ function printSetupHelp(): void {
   console.log(`Usage: aseprite-mcp setup [options]
 
 Options:
-  --cursor              Write/merge Cursor MCP config (project .cursor/mcp.json, else ~/.cursor/mcp.json)
+  --cursor              Write/merge Cursor MCP config (project .cursor/mcp.json, else ~/.cursor/mcp.json);
+                        also removes aseprite from the other Cursor path to avoid dual port-7777 servers
   --claude              Write/merge Claude Desktop MCP config
   --antigravity         Write/merge Antigravity (~/.gemini) MCP config
   --print               Print MCP JSON snippet (default if no client flags)

@@ -201,7 +201,7 @@ On Windows, either style works in JSON:
 From the project folder:
 
 ```bash
-# Cursor (writes .cursor/mcp.json in the current folder, or ~/.cursor/mcp.json)
+# Cursor (writes project .cursor/mcp.json when in a project; removes aseprite from ~/.cursor/mcp.json so only one server runs)
 node dist/bin.js setup --cursor
 
 # Claude Desktop
@@ -410,7 +410,7 @@ Until then, use **Part 1–6** (Node + project folder) or a release binary.
 | `node` is not recognized | Reinstall Node.js LTS, then open a **new** terminal. On Windows, reboot once if needed. |
 | AI says it cannot find `node` | In MCP config, set `"command"` to the full path of `node.exe` (Windows: run `where.exe node` in PowerShell). |
 | Extension missing / Disconnected | **Edit → Preferences → Extensions** → enable **Aseprite MCP Bridge** → restart Aseprite → **File → MCP Bridge... → Connect** while the AI app is open. |
-| Port 7777 already in use | You may have two AI apps running this server at once. Close one, or set `"ASEPRITE_MCP_PORT": "7778"` in the MCP `env` block. |
+| Port 7777 already in use | Usually two `aseprite` entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan `node …/dist/bin.js`. Run `setup --cursor` again (it clears the duplicate), kill orphans, refresh MCP once. Last resort: `"ASEPRITE_MCP_PORT": "7778"` in MCP `env`. |
 | Headless does nothing | Double-check `ASEPRITE_PATH` points to the real `Aseprite.exe` / `aseprite` binary, not a folder. |
 | Setup wrote the wrong folder | Run setup from inside the project folder, or pass `--command` / `--arg` yourself. Use `--print` first to preview. |
 | Preview page is blank | Start a chat that loads the MCP server, then open http://127.0.0.1:7777/ again. |
