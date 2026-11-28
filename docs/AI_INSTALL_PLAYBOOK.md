@@ -20,7 +20,7 @@ You are a patient setup assistant. The user may not know what Node, MCP, termina
 3. **Ask only when blocked.** Prefer detecting OS, paths, and installed tools yourself.
 4. **Speak the user’s language.** If they write Thai, reply in simple Thai. If English, use plain English. Avoid jargon; if you must use a term, define it in one short phrase.
 5. **Never invent paths.** Always verify files exist before writing them into MCP config.
-6. **Never skip the plugin + MCP config + smoke test.** Setup is incomplete until the test in §8 passes (or you clearly document what failed).
+6. **Never skip the plugin + MCP config + smoke test.** Setup is incomplete until the test in §6 passes (or you clearly document what failed).
 7. **Do not commit, push, or change git config** unless the user explicitly asks.
 
 ---
@@ -31,7 +31,7 @@ All of the following are true:
 
 | Check | Meaning |
 | --- | --- |
-| Project built | `dist/bin.js` exists |
+| Server installed | `npx` can run `@steper158x/aseprite_mcp`, or a release binary / local `dist/bin.js` exists |
 | Plugin installed | Aseprite shows **Aseprite MCP Bridge** under Extensions |
 | MCP config written | Cursor / Claude / Antigravity has an `aseprite` server entry |
 | Smoke OK | User (or you via MCP) can get status / draw a tiny test |
@@ -50,10 +50,10 @@ Run these checks yourself when possible. Ask the user only for what you cannot d
 | --- | --- |
 | OS | `win32` / `darwin` / `linux` from the environment |
 | Shell | PowerShell on Windows; zsh/bash on macOS/Linux |
-| Node.js | `node --version` → need **v20+** |
-| npm | `npm --version` |
-| Project root | Folder containing this repo’s `package.json` (`name`: `@steper158x/aseprite_mcp`) |
-| Aseprite | See §5 / run setup discovery |
+| Node.js | `node --version` → need **v20+** for the npm path |
+| npx | `npx --version` |
+| This repo open? | A folder whose `package.json` `name` is `@steper158x/aseprite_mcp` |
+| Aseprite | `npx -y @steper158x/aseprite_mcp setup --print`, or the paths in §4 |
 | AI client | Ask once if unclear: **Cursor**, **Claude Desktop**, or **Antigravity** |
 
 ### 2.2 Ask the user (only if needed)
@@ -70,150 +70,45 @@ Do **not** ask for Node.js, Git, or paths if you can check them.
 | Missing | What you do |
 | --- | --- |
 | No Aseprite | Stop. Explain they need a licensed Aseprite install first. Link: https://www.aseprite.org/ — do not continue past plugin install. |
-| Node &lt; 20 or missing | Guide them to https://nodejs.org/ **LTS**. After install, open a **new** terminal and re-check `node --version`. On Windows, suggest reboot once if `node` is still missing. |
+| Node &lt; 20 or missing, and they can install it | Guide them to https://nodejs.org/ **LTS**. After install, open a **new** terminal and re-check `node --version`. On Windows, suggest reboot once if `node` is still missing. |
+| Node missing and they cannot install it | Switch to the release zip in §8. |
 | No AI MCP client | Explain they need Cursor, Claude Desktop, or Antigravity. Pause until they pick one. |
 
 ---
 
-## 3. Preferred install path (default)
+## 3. Preferred install path (default): npm
 
-Use this path for almost everyone:
+Use this for almost everyone. The package `@steper158x/aseprite_mcp` is published. Do **not** clone the repo unless §7 applies.
 
-1. Ensure project files are on disk (this repo folder).
-2. Install Node.js 20+ if needed.
-3. From project root: `npm install` then `npm run build`.
-4. Install plugin: `node dist/bin.js install-plugin`.
-5. Write MCP config for their client: `node dist/bin.js setup --cursor` (or `--claude` / `--antigravity`).
-6. Tell them to restart Aseprite + refresh MCP.
-7. Run the §8 smoke test with them.
-
-**Do not** start with release binaries or `npx` unless:
-
-- `npm run build` fails and a GitHub Release binary exists for their OS, or
-- the npm package `@steper158x/aseprite_mcp` is confirmed published and they prefer zero local clone.
-
----
-
-## 4. Project files
-
-### If the user already has this folder open in Cursor
-
-Use the current workspace as the project root. Confirm `package.json` exists.
-
-### If they only have a chat and no folder
-
-Help them get the repo:
-
-**Easiest for beginners (no Git):**
-
-1. Open the GitHub repo page.
-2. Green **Code** → **Download ZIP**.
-3. Extract somewhere simple, e.g.  
-   - Windows: `C:\Users\<User>\aseprite_mcp`  
-   - macOS: `/Users/<User>/aseprite_mcp`
-4. Open that folder in Cursor (or their editor).
-
-**If Git is available:**
+1. Ensure Node.js 20+ (`node --version`, `npx --version`).
+2. From the folder they have open in Cursor (any folder is fine for Claude or Antigravity), run **one** command:
 
 ```bash
-git clone <repo-url>
-cd aseprite_mcp
+npx -y @steper158x/aseprite_mcp setup --cursor
 ```
 
-Remember the absolute project path; MCP config needs it.
+Use `--claude` or `--antigravity` instead of `--cursor` to match their app. Add `--print` first if you want to show the JSON before writing.
 
----
-
-## 5. Build the server
-
-Working directory = project root.
+3. Read the setup summary. If Aseprite was not found, pass the real executable:
 
 ```bash
-npm install
-npm run build
+npx -y @steper158x/aseprite_mcp setup --cursor --aseprite "C:/full/path/to/Aseprite.exe"
 ```
 
-**Verify**
+4. Tell them to quit Aseprite completely and open it again. Confirm **Edit → Preferences → Extensions** shows **Aseprite MCP Bridge** enabled.
+5. Refresh MCP (Cursor) or fully restart the AI app (Claude Desktop).
+6. Run the §6 smoke test.
 
-- `dist/bin.js` exists
-- `dist/aseprite-mcp-bridge.aseprite-extension` exists (or can be produced by setup/package-plugin)
-- `dist/preview/` exists
+For Cursor, run setup **inside the project folder they have open** so it writes that folder’s `.cursor/mcp.json` and removes a duplicate `aseprite` entry from `~/.cursor/mcp.json`.
 
-If `npm run build` fails:
-
-1. Paste/read the full error.
-2. Common fixes: wrong directory, Node too old, network blocked on `npm install`.
-3. Do not continue to MCP config until `dist/bin.js` exists.
-
----
-
-## 6. Install the Aseprite plugin
-
-```bash
-node dist/bin.js install-plugin
-```
-
-Then tell the user in plain language:
-
-1. **Quit Aseprite completely** (not just close the sprite — quit the app).
-2. Open Aseprite again.
-3. Go to **Edit → Preferences → Extensions**.
-4. Confirm **Aseprite MCP Bridge** is listed and enabled.
-
-**Fallback (manual):** drag `dist/aseprite-mcp-bridge.aseprite-extension` onto the Aseprite window → allow script/network trust → restart Aseprite.
-
-If install-plugin fails, read the error, try packaging with `node dist/bin.js package-plugin`, then use the manual drag-and-drop path.
-
----
-
-## 7. Find Aseprite path + write MCP config
-
-### 7.1 Discover Aseprite
-
-```bash
-node dist/bin.js setup --print
-```
-
-Read the printed `ASEPRITE_PATH`. If “not found”:
-
-**Windows (Steam):** Steam → right-click Aseprite → Manage → Browse local files → append `\Aseprite.exe`.  
-Common: `C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe`
-
-**macOS:** often `/Applications/Aseprite.app/Contents/MacOS/aseprite`
-
-Pass an explicit path:
-
-```bash
-node dist/bin.js setup --cursor --aseprite "C:/full/path/to/Aseprite.exe"
-```
-
-(Use `--claude` or `--antigravity` instead of `--cursor` when appropriate.)
-
-### 7.2 Write config for the chosen client
-
-| Client | Command |
-| --- | --- |
-| Cursor | `node dist/bin.js setup --cursor` |
-| Claude Desktop | `node dist/bin.js setup --claude` |
-| Antigravity | `node dist/bin.js setup --antigravity` |
-| Preview only | `node dist/bin.js setup --print` |
-
-Setup **merges** into existing MCP JSON and also installs the plugin unless `--skip-plugin` is passed.
-
-**After writing config**
-
-- **Cursor:** Settings → MCP → refresh/reload (or restart Cursor).
-- **Claude Desktop:** fully quit (including tray) and reopen.
-- **Antigravity:** refresh MCP or start a new chat.
-
-### 7.3 Expected MCP shape (Node + local build)
+The MCP entry setup writes looks like this:
 
 ```json
 {
   "mcpServers": {
     "aseprite": {
-      "command": "node",
-      "args": ["<PROJECT>/dist/bin.js"],
+      "command": "npx",
+      "args": ["-y", "@steper158x/aseprite_mcp"],
       "env": {
         "ASEPRITE_PATH": "<ASEPRITE>"
       }
@@ -222,19 +117,34 @@ Setup **merges** into existing MCP JSON and also installs the plugin unless `--s
 }
 ```
 
-On Windows prefer forward slashes in JSON (`C:/Users/...`).  
-If the AI app cannot find `node`, set `"command"` to the full path from `where.exe node` (Windows) or `which node` (macOS/Linux).
-
-### 7.4 If setup wrote the wrong place
-
-- Re-run setup from **inside the project folder**.
-- For Cursor, project config is `.cursor/mcp.json`; global is `~/.cursor/mcp.json`.
-- `setup --cursor` writes **one** of those paths and **removes** `aseprite` from the other, so Cursor does not spawn two servers on port 7777.
-- Use `--print` first when unsure; show the user the snippet before writing if they are anxious.
+**Do not** start by cloning or by `npm run build` unless the user already has this repository open and wants to run that checkout (§7), or `npx` fails and a release zip is the fallback (§8).
 
 ---
 
-## 8. Smoke test (required)
+## 4. Find Aseprite when setup does not
+
+**Windows (Steam):** Steam → right-click Aseprite → Manage → Browse local files → append `\Aseprite.exe`.  
+Common: `C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe`
+
+**macOS:** often `/Applications/Aseprite.app/Contents/MacOS/aseprite`
+
+On Windows, JSON may use forward slashes (`C:/Users/...`) or escaped backslashes.
+
+---
+
+## 5. After config is written
+
+- **Cursor:** Settings → MCP → refresh/reload (or restart Cursor).
+- **Claude Desktop:** fully quit (including tray) and reopen. Config file: `%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS.
+- **Antigravity:** `~/.gemini/config/mcp_config.json` (Windows: `C:\Users\<User>\.gemini\config\mcp_config.json`). Refresh MCP or start a new chat.
+
+Setup **merges** into existing MCP JSON and also installs the plugin unless `--skip-plugin` is passed.
+
+If setup wrote the wrong place: re-run from the correct folder, or use `--print` and show the snippet before writing.
+
+---
+
+## 6. Smoke test (required)
 
 Guide the user:
 
@@ -263,18 +173,93 @@ If status fails, go to §9 — do not declare setup finished.
 
 ---
 
+## 7. Build from source (only when this repo is the one they should run)
+
+Use this when the chat already has this repository open and they want **this checkout**, not the published npm package. Also use it if you are developing.
+
+Requirements: Node.js 20+ and npm. Bun is **not** required for this build.
+
+From the repository root (the folder whose `package.json` name is `@steper158x/aseprite_mcp`):
+
+```bash
+npm install
+npm run build
+node dist/bin.js setup --cursor
+```
+
+`npm run build` runs `node scripts/build.mjs` (esbuild). `bun run build` runs that same script.
+
+**Verify**
+
+- `dist/bin.js` exists
+- `dist/aseprite-mcp-bridge.aseprite-extension` exists
+- `dist/preview/` exists
+
+Manual MCP shape for a local build:
+
+```json
+{
+  "mcpServers": {
+    "aseprite": {
+      "command": "node",
+      "args": ["<PROJECT>/dist/bin.js"],
+      "env": {
+        "ASEPRITE_PATH": "<ASEPRITE>"
+      }
+    }
+  }
+}
+```
+
+`<PROJECT>` is the absolute repository path. On Windows prefer forward slashes in JSON. If the AI app cannot find `node`, set `"command"` to the full path from `where.exe node` (Windows) or `which node` (macOS/Linux).
+
+Plugin-only commands, still from the repo root:
+
+```bash
+node dist/bin.js install-plugin
+node dist/bin.js package-plugin
+```
+
+Manual plugin fallback: drag `dist/aseprite-mcp-bridge.aseprite-extension` onto Aseprite → allow script/network trust → restart Aseprite.
+
+If `npm run build` fails: wrong directory, Node older than 20, or `npm install` did not finish (esbuild is a dev dependency). Read the full error. Do not write MCP config that points at `dist/bin.js` until that file exists.
+
+Contributors running tests need [Bun](https://bun.sh/) as well: `npm test` is `bun test`. `bun run build:binaries` also needs Bun. End-user install does not.
+
+---
+
+## 8. Release zip (no Node.js)
+
+Use this when Node cannot be installed, or `npx` fails and a GitHub Release zip exists for their OS.
+
+The release workflow (tags `v*`) publishes:
+
+| System | Zip | Binary inside |
+| --- | --- | --- |
+| Windows x64 | `aseprite-mcp-windows-x64.exe.zip` | `aseprite-mcp-windows-x64.exe` |
+| macOS Apple silicon | `aseprite-mcp-darwin-arm64.zip` | `aseprite-mcp-darwin-arm64` |
+| macOS Intel | `aseprite-mcp-darwin-x64.zip` | `aseprite-mcp-darwin-x64` |
+| Linux x64 | `aseprite-mcp-linux-x64.zip` | `aseprite-mcp-linux-x64` |
+
+1. Download the matching zip from the latest GitHub Release.
+2. Extract to a permanent folder. Keep `aseprite-plugin` and `preview` beside the binary.
+3. Run `<binary> setup --cursor` (or `--claude` / `--antigravity`).
+4. MCP `command` = full path to that binary, `args` = `[]`.
+
+---
+
 ## 9. Troubleshooting decision tree
 
 | Symptom | Action |
 | --- | --- |
-| `node` not found | Reinstall Node LTS → new terminal → on Windows reboot once → if MCP still fails, use full path to `node.exe` as `command` |
-| MCP server won’t start | Confirm `dist/bin.js` path in config is absolute and correct; reopen AI app |
+| `node` or `npx` not found | Reinstall Node LTS → new terminal → on Windows reboot once. If they cannot install Node, use §8. |
+| MCP server won’t start | For npm: `"command"` is `npx` and args are `["-y", "@steper158x/aseprite_mcp"]`. For a local build: `dist/bin.js` path is absolute. Reopen the AI app. |
 | Extension missing / Disconnected | Preferences → Extensions → enable bridge → restart Aseprite → File → MCP Bridge… → Connect while AI app is open |
-| Port 7777 in use / connect fails after refresh | Almost always **two** `aseprite` MCP entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan `node …/dist/bin.js`. Fix: `node dist/bin.js setup --cursor` (clears the duplicate), kill orphans (`Get-CimInstance Win32_Process` / `pgrep -af aseprite_mcp`), then refresh MCP once. Do **not** keep `aseprite` in both Cursor configs. Last resort: `ASEPRITE_MCP_PORT=7778` in MCP `env` (Bridge must use the same port). |
-| `get_status` still says port in use after closing Aseprite | Closing Aseprite does **not** free 7777 (the MCP `node …/dist/bin.js` process owns it). If another MCP instance died, the current one retries bind on the next `get_status` / tool call. If conflict persists, refresh the aseprite MCP server in Cursor or kill the orphan node process. |
+| Port 7777 in use / connect fails after refresh | Almost always **two** `aseprite` MCP entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan Node process. Fix: `npx -y @steper158x/aseprite_mcp setup --cursor` (clears the duplicate), kill orphans, then refresh MCP once. Do **not** keep `aseprite` in both Cursor configs. Last resort: `ASEPRITE_MCP_PORT=7778` in MCP `env`, and set the same URL port in **File → MCP Bridge...**. |
+| `get_status` still says port in use after closing Aseprite | Closing Aseprite does **not** free 7777 (the MCP Node process owns it). Refresh the aseprite MCP server or kill the orphan process. |
 | Headless does nothing | Fix `ASEPRITE_PATH` to the **executable**, not a folder |
 | Preview blank | Start a chat that loads MCP, then reopen http://127.0.0.1:7777/ |
-| `npm install` / `build` fails | Stay in project root; check Node ≥ 20; fix network/registry; read full error before guessing |
+| `npm install` / `npm run build` fails | You are on the source path (§7). Stay in the repo root; Node ≥ 20; let `npm install` finish so `esbuild` is installed. |
 
 Always copy the real error text into your reasoning. Propose **one** fix, verify, then continue.
 
@@ -290,41 +275,20 @@ Always copy the real error text into your reasoning. Propose **one** fix, verify
 **Bad**
 
 - “Merge the MCP server entry into your stdio transport config and restart the daemon.”
-- Dumping Parts 1–7 of the README in one message.
+- Dumping the whole README in one message.
 
 After success, give **3–5 example prompts** only (from the README), not another wall of docs.
 
 ---
 
-## 11. Alternate paths (only when needed)
-
-### Release binary
-
-If GitHub Releases has a zip for their OS and Node build is blocked:
-
-1. Extract to a permanent folder (keep `aseprite-plugin` and `preview` beside the binary).
-2. Run `aseprite-mcp-….exe setup --cursor` (or matching binary name).
-3. MCP `command` = full path to that binary, `args` = `[]`.
-
-### npm / npx (when package is published)
-
-```bash
-npx -y @steper158x/aseprite_mcp setup --cursor
-```
-
-MCP entry uses `npx` + `["-y", "@steper158x/aseprite_mcp"]`.  
-Until publish is confirmed, prefer the local Node build path (§3–8).
-
----
-
-## 12. Agent checklist (copy and tick mentally)
+## 11. Agent checklist (copy and tick mentally)
 
 ```text
-[ ] OS / Node ≥ 20 verified
-[ ] Project root known; npm install + npm run build OK → dist/bin.js exists
+[ ] OS detected; AI client identified
+[ ] Node ≥ 20, or a release zip chosen because Node is unavailable
+[ ] Setup command finished (npx, local dist/bin.js, or release binary)
 [ ] Plugin installed; user restarted Aseprite; Extensions shows MCP Bridge
-[ ] AI client identified
-[ ] setup --<client> written; ASEPRITE_PATH set if found
+[ ] ASEPRITE_PATH set when the executable was found
 [ ] User refreshed MCP / restarted AI app
 [ ] Smoke: status check OK (and ideally a tiny draw test)
 [ ] User got 2–3 simple example prompts in their language
@@ -332,17 +296,17 @@ Until publish is confirmed, prefer the local Node build path (§3–8).
 
 ---
 
-## 13. Reference commands (project root)
+## 12. Reference commands
 
-| Command | Purpose |
+| Command | When |
 | --- | --- |
-| `npm install` | Install dependencies |
-| `npm run build` | Build `dist/bin.js` + plugin package |
-| `node dist/bin.js install-plugin` | Install Aseprite extension |
-| `node dist/bin.js setup --cursor` | Plugin + Cursor MCP config |
-| `node dist/bin.js setup --claude` | Plugin + Claude Desktop config |
-| `node dist/bin.js setup --antigravity` | Plugin + Antigravity config |
-| `node dist/bin.js setup --print` | Print JSON only |
+| `npx -y @steper158x/aseprite_mcp setup --cursor` | Default install (also `--claude`, `--antigravity`, `--print`) |
+| `npx -y @steper158x/aseprite_mcp setup --cursor --aseprite "<path>"` | Default install with an explicit Aseprite executable |
+| `npm install` | Source checkout only |
+| `npm run build` | Source checkout only. Node 20+. Same as `bun run build` |
+| `npm run typecheck` | Contributors. `tsc --noEmit` |
+| `npm test` | Contributors. Requires Bun |
+| `node dist/bin.js install-plugin` | Source checkout: install the extension |
 | `node dist/bin.js setup --help` | All setup flags |
 
 Human-oriented details and screenshots live in the READMEs. Prefer this playbook’s sequence when **you** are the one installing.

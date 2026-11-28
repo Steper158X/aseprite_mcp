@@ -242,10 +242,6 @@ export function cursorConfigTargets(cwd = process.cwd()): { primary: string; alt
   return { primary: user, alternate: projectLocal };
 }
 
-function cursorConfigPath(): string {
-  return cursorConfigTargets().primary;
-}
-
 /** Remove only the aseprite server entry so Cursor cannot spawn a second bridge on port 7777. */
 export function removeAsepriteFromMcpConfig(filePath: string, dryRun = false): boolean {
   if (!existsSync(filePath)) return false;
