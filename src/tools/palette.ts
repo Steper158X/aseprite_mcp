@@ -44,4 +44,23 @@ export function registerPaletteTools(server: McpServer, router: Router): void {
         { mutating: true, toolName: "set_palette" },
       ),
   );
+
+  server.registerTool(
+    "set_palette_color",
+    {
+      description:
+        "Set one palette entry by its 0-based index (the same order get_palette returns). One Ctrl+Z undo step.",
+      inputSchema: {
+        index: z.number().int().min(0).max(255),
+        color: hexColorSchema,
+      },
+    },
+    async ({ index, color }) =>
+      runBackendTool(
+        router,
+        "set_palette_color",
+        { index, color },
+        { mutating: true, toolName: "set_palette_color" },
+      ),
+  );
 }

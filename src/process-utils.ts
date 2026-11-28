@@ -1,5 +1,23 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { platform } from "node:os";
+
+function killProcessTree(child: ChildProcess): void {
+  if (child.pid && process.platform === "win32") {
+    try {
+      spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    } catch {
+      // Fall through to a direct kill if taskkill cannot start.
+    }
+  }
+  try {
+    child.kill();
+  } catch {
+    // The process may already have exited.
+  }
+}
 
 export interface SpawnResult {
   exitCode: number | null;
@@ -28,9 +46,7 @@ export function spawnCapture(
       timeoutMs !== undefined
         ? setTimeout(() => {
             timedOut = true;
-            try {
-              child.kill();
-            } catch {}
+            killProcessTree(child);
           }, timeoutMs)
         : null;
 

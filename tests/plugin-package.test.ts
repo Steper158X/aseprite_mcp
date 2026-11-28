@@ -34,7 +34,7 @@ describe("packagePlugin", () => {
         expect(entry.includes("\\")).toBe(false);
       }
 
-      const required = ["package.json", "plugin.lua", "lib/handlers.lua", "lib/util.lua"];
+      const required = ["package.json", "plugin.lua", "lib/handlers.lua", "lib/util.lua", "lib/commands.lua"];
       for (const req of required) {
         expect(result.entries).toContain(req);
       }

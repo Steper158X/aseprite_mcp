@@ -28,7 +28,10 @@ export function installPlugin(sourceDir = pluginRoot()): string {
 
   mkdirSync(extensionsBase, { recursive: true });
   rmSync(targetDir, { recursive: true, force: true });
-  cpSync(sourceDir, targetDir, { recursive: true });
+  cpSync(sourceDir, targetDir, {
+    recursive: true,
+    filter: (source) => !source.replace(/\\/g, "/").endsWith("/bridge.local.json"),
+  });
   return targetDir;
 }
 

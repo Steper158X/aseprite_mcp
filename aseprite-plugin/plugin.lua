@@ -1,4 +1,4 @@
-local PLUGIN_VERSION = "0.1.0"
+local PLUGIN_VERSION = "0.2.0"
 local DEFAULT_URL = "ws://127.0.0.1:7777/aseprite"
 local LEGACY_DEFAULT_URL = "ws://127.0.0.1:7531"
 
@@ -186,9 +186,66 @@ local function disconnectBridge(isManual)
   updateDialog()
 end
 
+local bridgeLuaKey = ""
+local utilRef = nil
+
+local function readBridgeFile(path)
+  local f = io.open(path, "r")
+  if not f then
+    return nil
+  end
+  local raw = f:read("*a")
+  f:close()
+  if not raw or raw == "" then
+    return nil
+  end
+  local ok, parsed = pcall(json.decode, raw)
+  if not ok or type(parsed) ~= "table" then
+    return nil
+  end
+  return parsed
+end
+
+local function userBridgeConfigPath()
+  local home = os.getenv("HOME") or ""
+  if app.fs.pathSeparator == "\\" then
+    local base = os.getenv("APPDATA") or ""
+    return app.fs.joinPath(base, "aseprite-mcp", "bridge.json")
+  end
+  if app.fs.isDirectory("/proc") then
+    local xdg = os.getenv("XDG_CONFIG_HOME")
+    local base = (type(xdg) == "string" and xdg ~= "") and xdg or app.fs.joinPath(home, ".config")
+    return app.fs.joinPath(base, "aseprite-mcp", "bridge.json")
+  end
+  return app.fs.joinPath(home, "Library", "Application Support", "aseprite-mcp", "bridge.json")
+end
+
+local function applyBridgeConfig(plugin)
+  local cfg = readBridgeFile(userBridgeConfigPath())
+  if not cfg then
+    cfg = readBridgeFile(app.fs.joinPath(plugin.path, "bridge.local.json"))
+  end
+  if not cfg then
+    return
+  end
+  if type(cfg.port) == "number" then
+    plugin.preferences.url = "ws://127.0.0.1:" .. tostring(math.floor(cfg.port)) .. "/aseprite"
+  end
+  if type(cfg.token) == "string" then
+    plugin.preferences.token = cfg.token
+  end
+  if type(cfg.luaKey) == "string" then
+    bridgeLuaKey = cfg.luaKey
+  end
+  if utilRef then
+    utilRef.luaKey = bridgeLuaKey
+  end
+end
+
 local function connectBridge(plugin)
   manualDisconnect = false
   disconnectBridge(false)
+  applyBridgeConfig(plugin)
   local url = getBridgeUrl(plugin)
 
   -- Capture this socket so a stale CLOSE from a replaced connection cannot
@@ -345,6 +402,9 @@ function init(plugin)
   util.isLuaAllowed = function()
     return pluginRef and pluginRef.preferences.allowLua == true
   end
+  utilRef = util
+  applyBridgeConfig(plugin)
+  util.luaKey = bridgeLuaKey
   local buildHandlers = dofile(app.fs.joinPath(plugin.path, "lib", "handlers.lua"))
   handlers = buildHandlers(util)
 

@@ -1,5 +1,6 @@
+import { loadOrCreateBridgeConfig } from "./bridge-config.ts";
 import { Bridge } from "./bridge.ts";
-import { getBridgePort } from "./protocol.ts";
+import { getBridgePort, getCallTimeoutMs } from "./protocol.ts";
 
 function printUsage(): void {
   console.error("Usage: bun run src/cli.ts [--wait <seconds>] <method> ['<json-params>']");
@@ -69,8 +70,9 @@ async function main(): Promise<void> {
   }
 
   const port = getBridgePort();
+  const secrets = loadOrCreateBridgeConfig({ port });
   const bridge = new Bridge();
-  await bridge.start(port);
+  await bridge.start(port, { token: secrets.token });
 
   if (bridge.portConflict) {
     console.error(JSON.stringify({ ok: false, error: bridge.portConflict }, null, 2));
@@ -80,7 +82,7 @@ async function main(): Promise<void> {
 
   try {
     await bridge.waitForConnection(Math.round(waitSec * 1000));
-    const result = await bridge.call(method, params, 15000);
+    const result = await bridge.call(method, params, getCallTimeoutMs());
     console.log(JSON.stringify({ ok: true, result }, null, 2));
   } catch (err) {
     console.error(

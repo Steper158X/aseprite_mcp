@@ -39,9 +39,17 @@ jobs:
           mkdir -p release
           # Per-platform zip: binary + plugin/preview beside it
           cd dist/binaries
-          for bin in aseprite-mcp-windows-x64.exe aseprite-mcp-darwin-x64 aseprite-mcp-darwin-arm64 aseprite-mcp-linux-x64; do
+          for bin in \
+            aseprite-mcp-windows-x64.exe \
+            aseprite-mcp-windows-arm64.exe \
+            aseprite-mcp-darwin-x64 \
+            aseprite-mcp-darwin-arm64 \
+            aseprite-mcp-linux-x64 \
+            aseprite-mcp-linux-arm64
+          do
             if [ -f "$bin" ]; then
-              zip -r "../../release/${bin}.zip" "$bin" aseprite-plugin preview aseprite-mcp-bridge.aseprite-extension
+              zipname="${bin%.exe}.zip"
+              zip -r "../../release/${zipname}" "$bin" aseprite-plugin preview aseprite-mcp-bridge.aseprite-extension
             fi
           done
           cd ../..

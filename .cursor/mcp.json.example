@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "aseprite": {
+      "command": "npx",
+      "args": ["-y", "@steper158x/aseprite_mcp"],
+      "env": {
+        "ASEPRITE_PATH": "C:/path/to/Aseprite.exe"
+      }
+    }
+  }
+}

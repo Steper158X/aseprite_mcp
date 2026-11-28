@@ -4,7 +4,9 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { packageRoot } from "./paths.ts";
 import { installPlugin } from "./plugin-install.ts";
 import { packagePlugin } from "./plugin-package.ts";
+import { loadOrCreateBridgeConfig, resolveListenPort, type BridgeLocalConfig } from "./bridge-config.ts";
 import { spawnCapture } from "./process-utils.ts";
+import { steamAsepriteCandidates } from "./steam-libraries.ts";
 
 export type McpClientTarget = "cursor" | "claude" | "antigravity" | "print";
 
@@ -94,14 +96,14 @@ export async function findAsepritePath(explicit?: string): Promise<string | null
     } catch {}
   }
 
-  const candidates =
+  const hardcoded =
     process.platform === "win32"
       ? STEAM_CANDIDATES_WIN
       : process.platform === "darwin"
         ? STEAM_CANDIDATES_MAC
         : STEAM_CANDIDATES_LINUX;
 
-  for (const candidate of candidates) {
+  for (const candidate of [...steamAsepriteCandidates(), ...hardcoded]) {
     const normalized = normalizeAsepritePath(candidate);
     if (normalized) return normalized;
   }
@@ -169,15 +171,14 @@ function buildMcpServerEntry(
   command: string,
   args: string[],
   asepritePath: string | null,
+  secrets: BridgeLocalConfig | null,
 ): Record<string, unknown> {
-  const entry: Record<string, unknown> = {
-    command,
-    args,
+  const env: Record<string, string> = {
+    ASEPRITE_MCP_TOKEN: secrets?.token ?? "<generated when you run setup>",
+    ASEPRITE_MCP_PORT: String(secrets?.port ?? resolveListenPort()),
   };
-  if (asepritePath) {
-    entry.env = { ASEPRITE_PATH: asepritePath };
-  }
-  return entry;
+  if (asepritePath) env.ASEPRITE_PATH = asepritePath;
+  return { command, args, env };
 }
 
 function mergeMcpConfig(filePath: string, serverEntry: Record<string, unknown>, dryRun: boolean): void {
@@ -317,7 +318,8 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupResult>
     }
   }
 
-  const serverEntry = buildMcpServerEntry(runtime.command, runtime.args, asepritePath);
+  const secrets = dryRun ? null : loadOrCreateBridgeConfig({ port: resolveListenPort() });
+  const serverEntry = buildMcpServerEntry(runtime.command, runtime.args, asepritePath, secrets);
   const mcpSnippet = { mcpServers: { aseprite: serverEntry } };
   const configsWritten: string[] = [];
   const configsCleared: string[] = [];
@@ -358,7 +360,7 @@ export async function runSetup(options: SetupOptions = {}): Promise<SetupResult>
     for (const c of configsCleared) console.log(`    - ${c}`);
   }
   console.log("\nNext steps:");
-  console.log("  1. Restart Aseprite so the MCP Bridge extension loads.");
+  console.log("  1. Restart Aseprite so the MCP Bridge extension loads the bridge token and port.");
   console.log("  2. Refresh MCP servers in your AI client (or restart the app).");
   console.log("  3. Ask: \"Check Aseprite MCP status\"");
 

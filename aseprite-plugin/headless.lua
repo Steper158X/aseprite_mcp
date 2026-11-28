@@ -28,10 +28,20 @@ local okMain, errMain = pcall(function()
 
   local req = json.decode(raw)
   local util = dofile(app.fs.joinPath(libDir, "util.lua"))
-  -- Headless is only invoked by the MCP server process; Lua is allowed when that
-  -- process chooses to call run_lua (server already gates via ASEPRITE_MCP_ALLOW_LUA).
+  -- A crafted request file can set allowLua, but a raw localhost client cannot:
+  -- only this batch script sees the flag, and the MCP server sets it only when
+  -- ASEPRITE_MCP_ALLOW_LUA=1. The plugin path checks luaKey instead.
   util.isLuaAllowed = function()
-    return true
+    return req.allowLua == true
+  end
+  if req.allowLua == true then
+    local key = req.luaKey
+    if (type(key) ~= "string" or key == "") and type(req.params) == "table" then
+      key = req.params.luaKey
+    end
+    util.luaKey = type(key) == "string" and key or ""
+  else
+    util.luaKey = ""
   end
   local buildHandlers = dofile(app.fs.joinPath(libDir, "handlers.lua"))
   local handlers = buildHandlers(util)
@@ -59,6 +69,17 @@ local okMain, errMain = pcall(function()
               app.frame = sprite.frames[idx]
             end
           end
+          local function applySwatch(hex, assign)
+            if type(hex) ~= "string" or hex == "" then
+              return
+            end
+            pcall(function()
+              local c = util.parseColor(hex)
+              assign(Color { r = c.r, g = c.g, b = c.b, a = c.a })
+            end)
+          end
+          applySwatch(req.state.fg, function(color) app.fgColor = color end)
+          applySwatch(req.state.bg, function(color) app.bgColor = color end)
         end
       end
     end
@@ -95,6 +116,16 @@ local okMain, errMain = pcall(function()
     layer = activeLayer and activeLayer.name or nil,
     frame = activeFrame and activeFrame.frameNumber or 1,
   }
+  if type(resultOrErr) == "table" then
+    if type(resultOrErr.fg) == "string" then state.fg = resultOrErr.fg end
+    if type(resultOrErr.bg) == "string" then state.bg = resultOrErr.bg end
+  end
+  if state.fg == nil and type(req.state) == "table" and type(req.state.fg) == "string" then
+    state.fg = req.state.fg
+  end
+  if state.bg == nil and type(req.state) == "table" and type(req.state.bg) == "string" then
+    state.bg = req.state.bg
+  end
 
   local response = {
     ok = true,

@@ -244,8 +244,12 @@
     }
 
     function connect() {
+      const params = new URLSearchParams(location.search);
+      const token = params.get("token");
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(proto + "//" + location.host + "/preview");
+      let wsUrl = proto + "//" + location.host + "/preview";
+      if (token) wsUrl += "?token=" + encodeURIComponent(token);
+      const ws = new WebSocket(wsUrl);
 
       ws.addEventListener("message", (event) => {
         let msg;

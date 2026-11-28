@@ -1,9 +1,10 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { authorizeLuaCall, previewUrl } from "./bridge-config.ts";
 import type { Bridge } from "./bridge.ts";
 import { readFileBytes } from "./fs-utils.ts";
-import { notConnectedMessage } from "./protocol.ts";
+import { getReconnectTimeoutMs, notConnectedMessage } from "./protocol.ts";
 
 export type BackendKind = "live" | "headless";
 export type BackendMode = "auto" | "live" | "headless";
@@ -36,6 +37,7 @@ export interface Backend {
     frame?: number;
     scale?: number;
     maxSize?: number;
+    layer?: string;
   }): Promise<RenderedPreview | null>;
 }
 
@@ -67,13 +69,15 @@ export class LiveBackend implements Backend {
   }
 
   call<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    return this.bridge.call<T>(method, params);
+    const gated = authorizeLuaCall(method, params);
+    return this.bridge.call<T>(method, gated.params);
   }
 
   async render(opts?: {
     frame?: number;
     scale?: number;
     maxSize?: number;
+    layer?: string;
   }): Promise<RenderedPreview | null> {
     mkdirSync(this.workdir, { recursive: true });
     const outPath = join(this.workdir, `live-preview-${Date.now()}-${this.seq++}.png`);
@@ -83,6 +87,7 @@ export class LiveBackend implements Backend {
       if (opts?.frame !== undefined) params.frame = opts.frame;
       if (opts?.scale !== undefined) params.scale = opts.scale;
       if (opts?.maxSize !== undefined) params.maxSize = opts.maxSize;
+      if (opts?.layer !== undefined) params.layer = opts.layer;
 
       const meta = await this.bridge.call<{
         width: number;
@@ -140,6 +145,18 @@ export class Router {
     return this.modeOverride ?? getConfiguredMode();
   }
 
+  /** After the GUI has connected once, wait briefly for it to return before failing the call. */
+  private async waitForLiveIfNeeded(): Promise<void> {
+    const mode = this.getModeSetting();
+    const holdLive = mode === "live" || (mode === "auto" && this.bridge.everConnected);
+    if (!holdLive || this.bridge.portConflict || this.live.isAvailable()) return;
+    try {
+      await this.bridge.waitForConnection(getReconnectTimeoutMs());
+    } catch {
+      // resolveBackend surfaces the not-connected error.
+    }
+  }
+
   resolveBackend(): Backend {
     const mode = this.getModeSetting();
     const conflict = this.bridge.portConflict;
@@ -157,10 +174,13 @@ export class Router {
       );
     }
 
-    // auto: prefer live when the bridge is usable; headless still works during port conflict
-    if (!conflict && this.live.isAvailable()) return this.live;
-    if (this.headless?.isAvailable()) return this.headless;
+    // auto: a port conflict or a dropped GUI session must not silently edit the headless temp file.
     if (conflict) throw new Error(conflict);
+    if (this.live.isAvailable()) return this.live;
+    if (this.bridge.everConnected) {
+      throw new Error(notConnectedMessage(this.bridge.port));
+    }
+    if (this.headless?.isAvailable()) return this.headless;
 
     throw new Error(
       `${notConnectedMessage(this.bridge.port)} Alternatively, set ASEPRITE_PATH to Aseprite.exe to enable headless mode.`,
@@ -173,6 +193,7 @@ export class Router {
     opts?: { mutating?: boolean; toolName?: string },
   ): Promise<{ mode: BackendKind; result: T }> {
     await this.bridge.ensureListening();
+    await this.waitForLiveIfNeeded();
     const backend = this.resolveBackend();
     const result = await backend.call<T>(method, params, opts);
 
@@ -199,8 +220,10 @@ export class Router {
     frame?: number;
     scale?: number;
     maxSize?: number;
+    layer?: string;
   }): Promise<{ mode: BackendKind } & RenderedPreview> {
     await this.bridge.ensureListening();
+    await this.waitForLiveIfNeeded();
     const backend = this.resolveBackend();
     const rendered = await backend.render(opts);
     if (!rendered) {
@@ -227,7 +250,7 @@ export class Router {
       activeBackend,
       connected: bridgeStatus.connected,
       port: bridgeStatus.port,
-      previewUrl: `http://127.0.0.1:${bridgeStatus.port}/`,
+      previewUrl: previewUrl(bridgeStatus.port, this.bridge.token),
       wsUrl: bridgeStatus.url,
       hello: bridgeStatus.hello,
       headlessAvailable,

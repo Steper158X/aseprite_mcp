@@ -40,6 +40,7 @@ return function(util)
       activeLayer = activeLayer and activeLayer.name or nil,
       activeFrame = activeFrame and activeFrame.frameNumber or 1,
       paletteSize = pal and #pal or 0,
+      tags = util.serializeTags(sprite),
     }
   end
 
@@ -284,13 +285,32 @@ return function(util)
       error("No active frame")
     end
 
-    local img = Image(sprite.spec)
-    img:drawSprite(sprite, frame)
+    local img
+    if params.layer ~= nil then
+      local layer = util.findLayerByName(sprite.layers, tostring(params.layer))
+      if not layer then
+        error("Layer not found: " .. tostring(params.layer))
+      end
+      if layer.isGroup then
+        error("Target layer is a group layer: " .. layer.name)
+      end
+      if layer.isTilemap then
+        error("tilemap layers not supported")
+      end
+      img = util.canvasCopy(sprite, layer, frame)
+    else
+      img = Image(sprite.spec)
+      img:drawSprite(sprite, frame)
+    end
 
     local w = sprite.width
     local h = sprite.height
     local maxDim = math.max(w, h)
     local target = tonumber(params.maxSize) or 512
+    if target < 1 then
+      error("maxSize must be a positive integer")
+    end
+    target = math.floor(target)
     local scale = 1
 
     if params.scale ~= nil then
@@ -298,12 +318,22 @@ return function(util)
         error("scale must be a positive integer")
       end
       scale = math.floor(params.scale)
+    elseif maxDim > target and maxDim > 0 then
+      scale = target / maxDim
     elseif maxDim > 0 and maxDim < target then
       scale = math.max(1, math.floor(target / maxDim))
     end
 
-    if scale > 1 then
-      img:resize(w * scale, h * scale)
+    local outW = math.max(1, math.floor(w * scale + 0.5))
+    local outH = math.max(1, math.floor(h * scale + 0.5))
+    if params.scale == nil and math.max(outW, outH) > target and maxDim > 0 then
+      scale = target / maxDim
+      outW = math.max(1, math.floor(w * scale + 0.5))
+      outH = math.max(1, math.floor(h * scale + 0.5))
+    end
+
+    if outW ~= w or outH ~= h then
+      img:resize{ width = outW, height = outH, method = "nearest" }
     end
 
     img:saveAs(params.path)
@@ -421,6 +451,19 @@ return function(util)
     if not sprite then
       error("No active sprite — open or create one")
     end
+    if util.layerNameTaken(sprite.layers, params.name) then
+      error("Layer already exists: " .. params.name)
+    end
+    local parent = nil
+    if params.parent ~= nil then
+      parent = util.findLayerByName(sprite.layers, tostring(params.parent))
+      if not parent then
+        error("Parent group not found: " .. tostring(params.parent))
+      end
+      if not parent.isGroup then
+        error("Parent is not a group layer: " .. parent.name)
+      end
+    end
     local layer
     app.transaction("MCP: add_layer", function()
       if params.group then
@@ -429,6 +472,9 @@ return function(util)
         layer = sprite:newLayer()
       end
       layer.name = params.name
+      if parent then
+        layer.parent = parent
+      end
       app.layer = layer
     end)
     util.refresh()
@@ -680,8 +726,8 @@ return function(util)
     local y0 = math.floor(params.y)
     local w = math.floor(params.width)
     local h = math.floor(params.height)
-    if w < 1 or h < 1 or w > 128 or h > 128 then
-      error("width and height must be between 1 and 128")
+    if w < 1 or h < 1 or w > 256 or h > 256 then
+      error("width and height must be between 1 and 256")
     end
 
     local sprite = app.activeSprite or app.sprite
@@ -752,6 +798,9 @@ return function(util)
     if util.isLuaAllowed and not util.isLuaAllowed() then
       error("run_lua is disabled. Enable 'Allow run_lua' in the MCP Bridge dialog (and ASEPRITE_MCP_ALLOW_LUA=1 on the server).")
     end
+    if type(util.luaKey) ~= "string" or util.luaKey == "" or params.luaKey ~= util.luaKey then
+      error("run_lua rejected. Start the MCP server with ASEPRITE_MCP_ALLOW_LUA=1 so it can present its lua key.")
+    end
     local env = setmetatable({}, { __index = _G })
     local chunk, loadErr = load(params.code, "mcp", "t", env)
     if not chunk then
@@ -765,6 +814,18 @@ return function(util)
     return {
       result = res ~= nil and tostring(res) or nil,
     }
+  end
+
+  local info = debug.getinfo(1, "S")
+  local source = info and info.source or ""
+  if source:sub(1, 1) == "@" then
+    source = source:sub(2)
+  end
+  if source ~= "" and app.fs and app.fs.filePath then
+    local extend = dofile(app.fs.joinPath(app.fs.filePath(source), "commands.lua"))
+    if type(extend) == "function" then
+      extend(handlers, util)
+    end
   end
 
   return handlers

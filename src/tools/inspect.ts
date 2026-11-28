@@ -9,7 +9,7 @@ export function registerInspectTools(server: McpServer, router: Router): void {
     "get_screenshot",
     {
       description:
-        "Render the flattened active sprite (upscaled with crisp nearest-neighbor pixels up to ~512px) and return it as a PNG image so you can visually inspect your pixel art.",
+        "Render the active sprite (or one layer) with nearest-neighbor scaling so the longest side is at most maxSize (default 512) and return it as a PNG image.",
       inputSchema: {
         frame: z
           .number()
@@ -23,12 +23,29 @@ export function registerInspectTools(server: McpServer, router: Router): void {
           .min(1)
           .max(64)
           .optional()
-          .describe("Optional integer upscale factor (auto-scales longest side up to ~512px if omitted)"),
+          .describe("Optional integer scale. When omitted, the image is fit to maxSize."),
+        maxSize: z
+          .number()
+          .int()
+          .min(1)
+          .max(4096)
+          .optional()
+          .describe("Longest side of the returned PNG in pixels (default 512). Larger sprites are downscaled."),
+        layer: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Render only this layer (name or Group/Name path). Omit for the flattened sprite."),
       },
     },
-    async ({ frame, scale }) => {
+    async ({ frame, scale, maxSize, layer }) => {
       try {
-        const rendered = await router.render({ frame, scale });
+        const rendered = await router.render({
+          frame,
+          scale,
+          maxSize: maxSize ?? 512,
+          layer,
+        });
         return {
           content: [
             {
@@ -60,12 +77,12 @@ export function registerInspectTools(server: McpServer, router: Router): void {
     "get_pixels",
     {
       description:
-        "Read raw #RRGGBBAA hex pixel values for a rectangular region (max 128x128) of the active sprite, either flattened (default) or from a specific layer. Out-of-bounds pixels return #00000000.",
+        "Read raw #RRGGBBAA hex pixel values for a rectangular region (max 256x256) of the active sprite, either flattened (default) or from a specific layer. Out-of-bounds pixels return #00000000.",
       inputSchema: {
         x: z.number().int().describe("Top-left 0-based X coordinate"),
         y: z.number().int().describe("Top-left 0-based Y coordinate"),
-        width: z.number().int().min(1).max(128).describe("Region width in pixels (1-128)"),
-        height: z.number().int().min(1).max(128).describe("Region height in pixels (1-128)"),
+        width: z.number().int().min(1).max(256).describe("Region width in pixels (1-256)"),
+        height: z.number().int().min(1).max(256).describe("Region height in pixels (1-256)"),
         layer: z
           .string()
           .optional()

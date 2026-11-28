@@ -9,7 +9,7 @@ export function registerSpriteTools(server: McpServer, router: Router): void {
     "get_sprite_info",
     {
       description:
-        "Inspect the active sprite: dimensions (width/height), colorMode, layer tree, frame count & durations, active layer/frame, and palette size.",
+        "Inspect the active sprite: dimensions, colorMode, layer tree (with paths), animation tags, frame count and durations, active layer/frame, and palette size.",
     },
     async () => {
       try {
@@ -18,6 +18,7 @@ export function registerSpriteTools(server: McpServer, router: Router): void {
           ...result,
           layers: normalizeLayerTree(result.layers),
           frames: asArray(result.frames),
+          tags: asArray(result.tags),
         });
       } catch (err) {
         return toolError(err);
@@ -140,6 +141,105 @@ export function registerSpriteTools(server: McpServer, router: Router): void {
           mutating: true,
           toolName: "save_sprite",
         });
+      } catch (err) {
+        return toolError(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "resize_sprite",
+    {
+      description:
+        "Resize the active sprite canvas to width and height in pixels. One Ctrl+Z undo step.",
+      inputSchema: {
+        width: z.number().int().min(1).max(65535),
+        height: z.number().int().min(1).max(65535),
+      },
+    },
+    async ({ width, height }) =>
+      runBackendTool(router, "resize_sprite", { width, height }, { mutating: true, toolName: "resize_sprite" }),
+  );
+
+  server.registerTool(
+    "crop_sprite",
+    {
+      description: "Crop the active sprite to a 0-based rectangle. One Ctrl+Z undo step.",
+      inputSchema: {
+        x: z.number().int(),
+        y: z.number().int(),
+        width: z.number().int().min(1).max(65535),
+        height: z.number().int().min(1).max(65535),
+      },
+    },
+    async ({ x, y, width, height }) =>
+      runBackendTool(
+        router,
+        "crop_sprite",
+        { x, y, width, height },
+        { mutating: true, toolName: "crop_sprite" },
+      ),
+  );
+
+  server.registerTool(
+    "flip_sprite",
+    {
+      description: "Flip the active sprite horizontally or vertically. One Ctrl+Z undo step.",
+      inputSchema: {
+        orientation: z.enum(["horizontal", "vertical"]),
+      },
+    },
+    async ({ orientation }) =>
+      runBackendTool(
+        router,
+        "flip_sprite",
+        { orientation },
+        { mutating: true, toolName: "flip_sprite" },
+      ),
+  );
+
+  server.registerTool(
+    "rotate_sprite",
+    {
+      description: "Rotate the active sprite by 90, 180, or 270 degrees clockwise. One Ctrl+Z undo step.",
+      inputSchema: {
+        angle: z.union([z.literal(90), z.literal(180), z.literal(270)]),
+      },
+    },
+    async ({ angle }) =>
+      runBackendTool(router, "rotate_sprite", { angle }, { mutating: true, toolName: "rotate_sprite" }),
+  );
+
+  server.registerTool(
+    "export_spritesheet",
+    {
+      description:
+        "Export the active sprite as a spritesheet PNG. Optional tag limits the export to that animation tag. Does not rescale the sprite.",
+      inputSchema: {
+        path: z.string().min(1).describe("Destination PNG path"),
+        layout: z
+          .enum(["horizontal", "vertical", "rows", "columns", "packed"])
+          .optional()
+          .describe("Sheet layout (default horizontal)"),
+        tag: z.string().min(1).optional().describe("Export only this animation tag"),
+        padding: z.number().int().min(0).max(256).optional().describe("Padding between frames in pixels"),
+        dataPath: z.string().min(1).optional().describe("Optional JSON metadata path"),
+      },
+    },
+    async ({ path, layout, tag, padding, dataPath }) => {
+      try {
+        return await runBackendTool(
+          router,
+          "export_spritesheet",
+          {
+            path: assertPathAllowed(path),
+            ...(layout !== undefined ? { layout } : {}),
+            ...(tag !== undefined ? { tag } : {}),
+            ...(padding !== undefined ? { padding } : {}),
+            ...(dataPath !== undefined ? { dataPath: assertPathAllowed(dataPath) } : {}),
+          },
+          { toolName: "export_spritesheet" },
+        );
       } catch (err) {
         return toolError(err);
       }

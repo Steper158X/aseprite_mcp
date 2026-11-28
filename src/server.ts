@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
+import { tokenMatches } from "./bridge-config.ts";
 import { getBridgeToken } from "./protocol.ts";
 import type { AppWebSocket } from "./ws-types.ts";
 
@@ -50,12 +52,38 @@ function writeText(res: ServerResponse, status: number, body: string): void {
   res.end(body);
 }
 
+function headerValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+/** Missing Origin is allowed (Aseprite's client). A browser Origin must be this localhost port. */
+export function originAllowed(origin: string | undefined, port: number): boolean {
+  if (!origin) return true;
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") return false;
+  if (url.port && Number(url.port) !== port) return false;
+  return true;
+}
+
+function rejectUpgrade(socket: Duplex, status: number, reason: string): void {
+  socket.write(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
+  socket.destroy();
+}
+
 export async function startHttpServer(options: StartHttpServerOptions): Promise<HttpServerHandle> {
   const { port, bridge, preview } = options;
   const requiredToken = options.token === undefined ? getBridgeToken() : options.token;
 
   const httpServer = createServer((req, res) => {
-    void handleHttpRequest(req, res, preview);
+    void handleHttpRequest(req, res, preview, requiredToken);
   });
 
   const asepriteWss = new WebSocketServer({ noServer: true });
@@ -123,41 +151,41 @@ export async function startHttpServer(options: StartHttpServerOptions): Promise<
     });
   });
 
+  const boundPort = () => {
+    const addr = httpServer.address();
+    if (addr && typeof addr === "object") return addr.port;
+    return port;
+  };
+
   httpServer.on("upgrade", (req, socket, head) => {
     let url: URL;
     try {
       const host = req.headers.host ?? "127.0.0.1";
       url = new URL(req.url ?? "/", `http://${host}`);
     } catch {
-      socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
-      socket.destroy();
+      rejectUpgrade(socket, 400, "Bad Request");
       return;
     }
 
-    if (url.pathname === "/aseprite") {
-      if (requiredToken) {
-        const provided = url.searchParams.get("token");
-        if (provided !== requiredToken) {
-          socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
-          socket.destroy();
-          return;
-        }
+    if (!originAllowed(headerValue(req.headers.origin), boundPort())) {
+      rejectUpgrade(socket, 403, "Forbidden");
+      return;
+    }
+
+    const authed = !requiredToken || tokenMatches(url.searchParams.get("token"), requiredToken);
+    if (url.pathname === "/aseprite" || (url.pathname === "/preview" && preview)) {
+      if (!authed) {
+        rejectUpgrade(socket, 401, "Unauthorized");
+        return;
       }
-      asepriteWss.handleUpgrade(req, socket, head, (ws) => {
-        asepriteWss.emit("connection", ws, req);
+      const wss = url.pathname === "/aseprite" ? asepriteWss : previewWss;
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req);
       });
       return;
     }
 
-    if (url.pathname === "/preview" && preview) {
-      previewWss.handleUpgrade(req, socket, head, (ws) => {
-        previewWss.emit("connection", ws, req);
-      });
-      return;
-    }
-
-    socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
-    socket.destroy();
+    rejectUpgrade(socket, 404, "Not Found");
   });
 
   try {
@@ -241,10 +269,20 @@ async function handleHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
   preview: PreviewTransport | undefined,
+  requiredToken: string | null,
 ): Promise<void> {
   try {
     const host = req.headers.host ?? "127.0.0.1";
     const url = new URL(req.url ?? "/", `http://${host}`);
+
+    if (
+      requiredToken &&
+      (url.pathname === "/" || url.pathname === "/preview.png") &&
+      !tokenMatches(url.searchParams.get("token"), requiredToken)
+    ) {
+      writeText(res, 401, "Unauthorized");
+      return;
+    }
 
     if (req.method === "GET" && url.pathname === "/") {
       if (!preview) {

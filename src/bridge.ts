@@ -2,6 +2,8 @@ import {
   type BridgeResponse,
   createRequestId,
   DEFAULT_BRIDGE_PORT,
+  getBridgeToken,
+  getCallTimeoutMs,
   type HelloInfo,
   notConnectedMessage,
 } from "./protocol.ts";
@@ -15,6 +17,8 @@ import type { AppWebSocket } from "./ws-types.ts";
 
 export interface BridgeStartOptions {
   preview?: PreviewTransport;
+  /** `null` disables auth (tests). Omit to use ASEPRITE_MCP_TOKEN, which is also null when unset. */
+  token?: string | null;
 }
 
 interface PendingRequest {
@@ -50,6 +54,17 @@ export class Bridge implements BridgeTransport {
   private eventListeners = new Set<(event: string, data: Record<string, unknown>) => void>();
   private connectionListeners = new Set<(connected: boolean) => void>();
   private textDecoder = new TextDecoder();
+  private authToken: string | null | undefined;
+  private _everConnected = false;
+
+  /** True after a plugin has connected at least once during this process. */
+  get everConnected(): boolean {
+    return this._everConnected;
+  }
+
+  get token(): string | null {
+    return this.authToken ?? null;
+  }
 
   get isConnected(): boolean {
     return this.client !== null;
@@ -90,6 +105,11 @@ export class Bridge implements BridgeTransport {
     if (options?.preview !== undefined) {
       this.preview = options.preview;
     }
+    if (options && "token" in options) {
+      this.authToken = options.token ?? null;
+    } else if (this.authToken === undefined) {
+      this.authToken = getBridgeToken();
+    }
     if (this.serverHandle?.server) return;
     if (this.serverHandle) {
       this.serverHandle.stop();
@@ -101,6 +121,7 @@ export class Bridge implements BridgeTransport {
       port,
       bridge: this,
       preview: this.preview,
+      token: this.authToken,
     });
   }
 
@@ -121,6 +142,7 @@ export class Bridge implements BridgeTransport {
     this.client = null;
     this.helloInfo = null;
     this._portConflict = null;
+    this._everConnected = false;
     if (active) {
       try {
         active.close(1001, "Server stopping");
@@ -163,7 +185,7 @@ export class Bridge implements BridgeTransport {
   call<T = unknown>(
     method: string,
     params: Record<string, unknown> = {},
-    timeoutMs = 15000,
+    timeoutMs = getCallTimeoutMs(),
   ): Promise<T> {
     if (this._portConflict) {
       return Promise.reject(new Error(this._portConflict));
@@ -221,6 +243,7 @@ export class Bridge implements BridgeTransport {
     }
 
     this.client = ws;
+    this._everConnected = true;
     this.helloInfo = null;
 
     for (const waiter of [...this.connectionWaiters]) {

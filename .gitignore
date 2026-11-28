@@ -29,3 +29,9 @@ logs
 # OS / IDE
 .DS_Store
 .idea
+
+# Machine-local MCP client config (see .cursor/mcp.json.example)
+.cursor/mcp.json
+
+# Generated bridge secret written next to an installed or dev extension
+aseprite-plugin/bridge.local.json
