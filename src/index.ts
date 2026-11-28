@@ -1,11 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { LiveBackend, Router } from "./backend.ts";
+import { loadOrCreateBridgeConfig, previewUrl, resolveListenPort } from "./bridge-config.ts";
 import { Bridge } from "./bridge.ts";
 import { HeadlessBackend } from "./headless.ts";
 import { PreviewHub } from "./preview.ts";
 import { openUrlInBrowser } from "./process-utils.ts";
-import { getBridgePort } from "./protocol.ts";
 import { registerDrawTools } from "./tools/draw.ts";
 import { registerFrameTools } from "./tools/frames.ts";
 import { registerInspectTools } from "./tools/inspect.ts";
@@ -13,13 +13,15 @@ import { registerLayerTools } from "./tools/layers.ts";
 import { registerLuaTools } from "./tools/lua.ts";
 import { registerPaletteTools } from "./tools/palette.ts";
 import { registerSpriteTools } from "./tools/sprite.ts";
+import { registerCelTools } from "./tools/cels.ts";
 import { registerStatusTools } from "./tools/status.ts";
 
 export async function startMcpServer(): Promise<void> {
-  const port = getBridgePort();
+  const port = resolveListenPort();
+  const secrets = loadOrCreateBridgeConfig({ port });
   const bridge = new Bridge();
   const preview = new PreviewHub();
-  await bridge.start(port, { preview });
+  await bridge.start(port, { preview, token: secrets.token });
 
   const live = new LiveBackend(bridge);
   const headless = new HeadlessBackend();
@@ -85,7 +87,7 @@ export async function startMcpServer(): Promise<void> {
 
   const mcp = new McpServer({
     name: "aseprite-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   registerStatusTools(mcp, router);
@@ -95,6 +97,7 @@ export async function startMcpServer(): Promise<void> {
   registerFrameTools(mcp, router);
   registerPaletteTools(mcp, router);
   registerInspectTools(mcp, router);
+  registerCelTools(mcp, router);
   if (process.env.ASEPRITE_MCP_ALLOW_LUA === "1") {
     registerLuaTools(mcp, router);
   }
@@ -109,6 +112,7 @@ export async function startMcpServer(): Promise<void> {
     } catch {
       // ignore close errors
     }
+    headless.dispose();
     bridge.stop();
     process.exit(0);
   };
@@ -120,13 +124,13 @@ export async function startMcpServer(): Promise<void> {
   };
 
   await mcp.connect(transport);
-  const previewUrl = `http://127.0.0.1:${bridge.port}/`;
+  const pageUrl = previewUrl(bridge.port, bridge.token);
   console.error(
-    `[aseprite-mcp] MCP server ready (ws://127.0.0.1:${bridge.port}/aseprite, preview ${previewUrl})`,
+    `[aseprite-mcp] MCP server ready (ws://127.0.0.1:${bridge.port}/aseprite, preview ${pageUrl})`,
   );
 
   if (process.env.ASEPRITE_MCP_OPEN_PREVIEW === "1" && !bridge.portConflict) {
-    openUrlInBrowser(previewUrl);
+    openUrlInBrowser(pageUrl);
   }
 }
 

@@ -1,4 +1,5 @@
-import { normalize, resolve, sep } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { basename, dirname, join, normalize, resolve, sep } from "node:path";
 
 export const DEFAULT_BRIDGE_PORT = 7777;
 
@@ -42,24 +43,87 @@ export function getBridgePort(envValue = process.env.ASEPRITE_MCP_PORT): number 
   return parsed;
 }
 
+function readTimeoutMs(envValue: string | undefined, fallback: number, name: string): number {
+  if (!envValue?.trim()) return fallback;
+  const parsed = Number.parseInt(envValue, 10);
+  if (!Number.isInteger(parsed) || parsed < 100 || parsed > 600_000) {
+    throw new Error(`Invalid ${name} "${envValue}" (expected milliseconds 100-600000)`);
+  }
+  return parsed;
+}
+
+export function getCallTimeoutMs(envValue = process.env.ASEPRITE_MCP_CALL_TIMEOUT_MS): number {
+  return readTimeoutMs(envValue, 15_000, "ASEPRITE_MCP_CALL_TIMEOUT_MS");
+}
+
+export function getHeadlessTimeoutMs(envValue = process.env.ASEPRITE_MCP_HEADLESS_TIMEOUT_MS): number {
+  return readTimeoutMs(envValue, 30_000, "ASEPRITE_MCP_HEADLESS_TIMEOUT_MS");
+}
+
+export function getReconnectTimeoutMs(envValue = process.env.ASEPRITE_MCP_RECONNECT_MS): number {
+  return readTimeoutMs(envValue, 4_000, "ASEPRITE_MCP_RECONNECT_MS");
+}
+
 export function getBridgeToken(envValue = process.env.ASEPRITE_MCP_TOKEN): string | null {
   const trimmed = envValue?.trim();
   return trimmed ? trimmed : null;
 }
 
-/** Optional filesystem root. When set, open/save paths must stay under it. */
+/**
+ * Filesystem root for open/save/export.
+ * Unset → the server's current directory.
+ * `*` or `unrestricted` → no sandbox.
+ */
 export function getFsRoot(envValue = process.env.ASEPRITE_MCP_FS_ROOT): string | null {
   const trimmed = envValue?.trim();
-  return trimmed ? resolve(trimmed) : null;
+  if (!trimmed) return resolve(process.cwd());
+  if (trimmed === "*" || trimmed.toLowerCase() === "unrestricted") return null;
+  return resolve(trimmed);
+}
+
+/** True when `resolvedPath` is `root` or a descendant. Comparison can ignore case. */
+export function pathWithinRoot(
+  resolvedPath: string,
+  root: string,
+  options?: { caseInsensitive?: boolean; pathSep?: string },
+): boolean {
+  const pathSep = options?.pathSep ?? sep;
+  const fold = (value: string) => (options?.caseInsensitive ? value.toLowerCase() : value);
+  const rootPath = fold(normalize(root));
+  const target = fold(normalize(resolvedPath));
+  const prefix = rootPath.endsWith(pathSep) ? rootPath : rootPath + pathSep;
+  return target === rootPath || target.startsWith(prefix);
+}
+
+/** Resolve a path, following symlinks through the nearest existing ancestor. */
+export function resolveRealPath(pathValue: string): string {
+  const absolute = resolve(pathValue);
+  const missing: string[] = [];
+  let current = absolute;
+  while (!existsSync(current)) {
+    const parent = dirname(current);
+    if (parent === current) break;
+    missing.push(basename(current));
+    current = parent;
+  }
+  let base = current;
+  if (existsSync(current)) {
+    try {
+      base = realpathSync(current);
+    } catch {
+      base = current;
+    }
+  }
+  return missing.reduceRight((acc, part) => join(acc, part), base);
 }
 
 export function assertPathAllowed(pathValue: string, root = getFsRoot()): string {
-  const resolved = resolve(pathValue);
+  const resolved = resolveRealPath(pathValue);
   if (!root) return resolved;
-  const normalizedRoot = normalize(root.endsWith(sep) ? root : root + sep);
-  const normalizedPath = normalize(resolved);
-  if (normalizedPath !== root && !normalizedPath.startsWith(normalizedRoot)) {
-    throw new Error(`Path escapes ASEPRITE_MCP_FS_ROOT (${root}): ${pathValue}`);
+  const rootResolved = resolveRealPath(root);
+  const caseInsensitive = process.platform === "win32";
+  if (!pathWithinRoot(resolved, rootResolved, { caseInsensitive })) {
+    throw new Error(`Path escapes ASEPRITE_MCP_FS_ROOT (${rootResolved}): ${pathValue}`);
   }
   return resolved;
 }

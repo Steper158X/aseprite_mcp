@@ -141,7 +141,9 @@ setup จะเขียนรายการชื่อ `"aseprite"` หน้
       "command": "npx",
       "args": ["-y", "@steper158x/aseprite_mcp"],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<setup สร้างให้>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
@@ -200,10 +202,10 @@ setup จะเขียนรายการชื่อ `"aseprite"` หน้
 
 ### หน้าเว็บดูภาพสด (ไม่บังคับ)
 
-ขณะที่แอป AI เปิด MCP อยู่ เปิดเบราว์เซอร์ไปที่:
+ขณะที่แอป AI เปิด MCP อยู่ ให้เปิด URL จาก `get_status` (มีโทเค็นของเครื่องนี้อยู่ในลิงก์) เซิร์ฟเวอร์พิมพ์ URL เดียวกันตอนเริ่มทำงาน เปิดหน้าเว็บโดยไม่มีโทเค็นจะถูกปฏิเสธ
 
-- http://127.0.0.1:7777/ — หน้าดูภาพแบบสด
-- http://127.0.0.1:7777/preview.png — รูปล่าสุดอย่างเดียว
+- `http://127.0.0.1:7777/?token=…` — หน้าดูภาพแบบสด
+- URL เดียวกันแต่เปลี่ยนพาธเป็น `/preview.png` — รูปล่าสุดอย่างเดียว
 
 ความหมายป้ายสถานะ:
 
@@ -234,7 +236,13 @@ setup จะเขียนรายการชื่อ `"aseprite"` หน้
 - `แคปภาพจาก Aseprite มาดูว่าสัดส่วนโอเคไหม`
 - `ทำเป็น Animation 4 เฟรม กระดิกหาง เฟรมละ 160 ms`
 - `เพิ่มเลเยอร์ Shadow ความโปร่งแสง 50% โหมด multiply`
-- `เซฟเป็น C:/art/cat.aseprite และ export เป็น C:/art/cat.gif`
+- `เซฟเป็น art/cat.aseprite และ export เป็น art/cat.gif`
+
+ไฟล์ที่เปิด บันทึก หรือส่งออกต้องอยู่ในโฟลเดอร์ที่เซิร์ฟเวอร์เริ่มทำงาน ถ้าต้องการโฟลเดอร์อื่น ให้ตั้ง `ASEPRITE_MCP_FS_ROOT` หรือใส่ `*` เพื่อปิดการจำกัด
+
+ถ้า Aseprite เคยเชื่อมแล้วหลุด โหมด auto จะรอสักครู่แล้วแจ้งว่ายังไม่เชื่อม จะไม่ไปวาดไฟล์เบื้องหลังเงียบๆ ถ้าต้องการไฟล์นั้นจริงๆ ให้ตั้ง `ASEPRITE_MODE=headless`
+
+เครื่องมือยังแก้แท็กแอนิเมชัน ส่งออก spritesheet ย่อ/ตัด/พลิก/หมุนแคนวาส จัดเลเยอร์ ย้ายเซล และกำหนด selection ได้ ยังไม่รองรับ tilemap, slice, grid และเลเยอร์ข้อความ
 
 ใช้ที่อยู่โฟลเดอร์ที่มีอยู่จริงบนเครื่องคุณ
 
@@ -246,10 +254,12 @@ GitHub Release (แท็ก `v*`) มีไฟล์ zip แยกตามร�
 
 | ระบบ | ไฟล์ zip | โปรแกรมข้างใน |
 | --- | --- | --- |
-| Windows x64 | `aseprite-mcp-windows-x64.exe.zip` | `aseprite-mcp-windows-x64.exe` |
+| Windows x64 | `aseprite-mcp-windows-x64.zip` | `aseprite-mcp-windows-x64.exe` |
+| Windows arm64 | `aseprite-mcp-windows-arm64.zip` | `aseprite-mcp-windows-arm64.exe` |
 | macOS Apple silicon | `aseprite-mcp-darwin-arm64.zip` | `aseprite-mcp-darwin-arm64` |
 | macOS Intel | `aseprite-mcp-darwin-x64.zip` | `aseprite-mcp-darwin-x64` |
 | Linux x64 | `aseprite-mcp-linux-x64.zip` | `aseprite-mcp-linux-x64` |
+| Linux arm64 | `aseprite-mcp-linux-arm64.zip` | `aseprite-mcp-linux-arm64` |
 
 1. ดาวน์โหลด zip ของระบบคุณจาก GitHub Release ล่าสุด
 2. แตกไปไว้ที่ถาวร เช่น `C:\Tools\aseprite-mcp\`
@@ -271,7 +281,9 @@ aseprite-mcp-windows-x64.exe setup --cursor
       "command": "C:/Tools/aseprite-mcp/aseprite-mcp-windows-x64.exe",
       "args": [],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<setup สร้างให้>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
@@ -316,7 +328,9 @@ node dist/bin.js setup --cursor
       "command": "node",
       "args": ["<PROJECT>/dist/bin.js"],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<setup สร้างให้>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
@@ -336,11 +350,11 @@ node dist/bin.js setup --cursor
 | ขึ้นว่าไม่รู้จักคำสั่ง `node` หรือ `npx` | ติดตั้ง Node.js LTS ใหม่ แล้วเปิดเทอร์มินัล**หน้าต่างใหม่** บน Windows อาจต้องรีสตาร์ทเครื่อง |
 | แอป AI หา `node` หรือ `npx` ไม่เจอ | ใน MCP config ใส่พาธเต็มของ `node.exe` หรือ `npx.cmd` (Windows: รัน `where.exe node` และ `where.exe npx` ใน PowerShell) |
 | ไม่เห็นปลั๊กอิน / Disconnected | **Edit → Preferences → Extensions** → เปิด **Aseprite MCP Bridge** → รีสตาร์ท Aseprite → **File → MCP Bridge... → Connect** ขณะเปิดแอป AI อยู่ |
-| พอร์ต 7777 ชนกัน | มักมี `aseprite` สองที่ (`.cursor/mcp.json` ของโปรเจกต์ **และ** `~/.cursor/mcp.json`) หรือโปรเซส Node ค้าง รัน `npx -y @steper158x/aseprite_mcp setup --cursor` อีกครั้ง (จะลบรายการซ้ำ) ฆ่าโปรเซสค้าง แล้วรีเฟรช MCP ครั้งเดียว สุดท้ายค่อยใส่ `"ASEPRITE_MCP_PORT": "7778"` ใน `env` และตั้งพอร์ตเดียวกันใน **File → MCP Bridge...** |
+| พอร์ต 7777 ชนกัน | มักมี `aseprite` สองที่ (`.cursor/mcp.json` ของโปรเจกต์ **และ** `~/.cursor/mcp.json`) หรือโปรเซส Node ค้าง รัน `npx -y @steper158x/aseprite_mcp setup --cursor` อีกครั้ง (จะลบรายการซ้ำ) ฆ่าโปรเซสค้าง แล้วรีเฟรช MCP ครั้งเดียว สุดท้ายค่อยใส่ `"ASEPRITE_MCP_PORT": "7778"` ใน `env` แล้วรัน setup หรือรีสตาร์ทเซิร์ฟเวอร์ให้เขียนไฟล์บริดจ์ใหม่ จากนั้นรีสตาร์ท Aseprite ส่วนขยายจะอ่านพอร์ตจากไฟล์นั้นตอนเชื่อมต่อ |
 | โหมด Headless ไม่ทำงาน | เช็คว่า `ASEPRITE_PATH` ชี้ไปที่ไฟล์ `Aseprite.exe` / `aseprite` จริง ไม่ใช่โฟลเดอร์ |
 | setup เขียนไฟล์ผิดที่ | ถ้าใช้ Cursor ให้รัน setup จากในโฟลเดอร์โปรเจกต์ที่เปิดอยู่ ใช้ `--print` ดูก่อนค่อยเขียน |
 | `npm run build` พัง | รันจากโฟลเดอร์รากของ repository ด้วย Node.js 20 ขึ้นไป ต้อง `npm install` ให้จบก่อน เพื่อให้มี `esbuild` |
-| หน้าพรีวิวว่าง | ให้แชทที่โหลด MCP ทำงานก่อน แล้วเปิด http://127.0.0.1:7777/ อีกครั้ง |
+| หน้าพรีวิวว่างหรือขึ้น Unauthorized | ให้แชทที่โหลด MCP ทำงานก่อน แล้วเปิด `previewUrl` จาก `get_status` (มีโทเค็นอยู่ในลิงก์) |
 
 ---
 
@@ -351,10 +365,16 @@ node dist/bin.js setup --cursor
 | ชื่อ | ค่าเริ่มต้น | ความหมาย |
 | --- | --- | --- |
 | `ASEPRITE_PATH` | (ว่าง) | พาธ Aseprite สำหรับวาดแบบปิดหน้าต่าง |
-| `ASEPRITE_MODE` | `auto` | `auto`, `live`, หรือ `headless` |
-| `ASEPRITE_MCP_PORT` | `7777` | พอร์ตพรีวิวและการเชื่อมต่อ |
+| `ASEPRITE_MODE` | `auto` | `auto`, `live`, หรือ `headless` ถ้าเคยเชื่อม GUI แล้วหลุด `auto` จะรอให้กลับมา ไม่สลับไปวาดไฟล์เบื้องหลังเงียบๆ |
+| `ASEPRITE_MCP_PORT` | `7777` | พอร์ตพรีวิวและการเชื่อมต่อ setup บันทึกไว้ให้ส่วนขยายใช้พอร์ตเดียวกัน |
+| `ASEPRITE_MCP_TOKEN` | สร้างให้ | รหัสลับที่ใช้ร่วมกัน `setup` เป็นคนสร้าง ถ้ายังไม่มี เซิร์ฟเวอร์จะสร้างตอนเริ่มทำงาน |
+| `ASEPRITE_MCP_FS_ROOT` | โฟลเดอร์ที่เซิร์ฟเวอร์เริ่ม | เปิด/บันทึก/ส่งออกต้องอยู่ในโฟลเดอร์นี้ ใส่ `*` หรือ `unrestricted` เพื่อปิดการจำกัด |
 | `ASEPRITE_MCP_OPEN_PREVIEW` | `0` | ตั้ง `1` เพื่อเปิดหน้าพรีวิวตอนเซิร์ฟเวอร์เริ่ม |
-| `ASEPRITE_MCP_ALLOW_LUA` | `0` | ตั้ง `1` เพื่อเปิดเครื่องมือขั้นสูง `run_lua` |
+| `ASEPRITE_MCP_ALLOW_LUA` | ไม่ตั้ง | ตั้ง `1` เพื่อเปิด `run_lua` และต้องเปิด Allow run_lua ใน **File → MCP Bridge...** ด้วย |
+| `ASEPRITE_MCP_CALL_TIMEOUT_MS` | `15000` | เวลารอคำสั่งแบบสด |
+| `ASEPRITE_MCP_HEADLESS_TIMEOUT_MS` | `30000` | เวลารอ Aseprite แบบปิดหน้าต่างหนึ่งครั้ง |
+| `ASEPRITE_MCP_RECONNECT_MS` | `4000` | โหมด auto รอให้ Aseprite ต่อกลับนานเท่าไร |
+| `ASEPRITE_MCP_CONFIG_DIR` | โฟลเดอร์ตั้งค่าของผู้ใช้ | เปลี่ยนที่เก็บ `bridge.json` (โทเค็น, กุญแจ lua, พอร์ต) |
 
 ---
 

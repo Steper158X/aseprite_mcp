@@ -20,6 +20,7 @@ const REQUIRED_ARCHIVE_ENTRIES = [
   "plugin.lua",
   "lib/handlers.lua",
   "lib/util.lua",
+  "lib/commands.lua",
 ] as const;
 
 const CRC32_TABLE = (() => {
@@ -95,6 +96,7 @@ function collectSourceEntries(pluginDir: string): SourceEntry[] {
         a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
       );
       for (const child of children) {
+        if (child.name === "bridge.local.json") continue;
         const childFullPath = join(fullPath, child.name);
         const childArchivePath = posix.join(relArchivePath.replace(/\/+$/, ""), child.name);
         visit(childFullPath, childArchivePath);

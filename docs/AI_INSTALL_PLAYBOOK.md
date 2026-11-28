@@ -110,12 +110,18 @@ The MCP entry setup writes looks like this:
       "command": "npx",
       "args": ["-y", "@steper158x/aseprite_mcp"],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<written by setup>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
 }
 ```
+
+Setup generates `ASEPRITE_MCP_TOKEN` and writes the same token and port into the Aseprite extension. Tell them to restart Aseprite after setup so the extension loads that file. Do not commit the token.
+
+Open/save/export stay inside the server's working directory unless `ASEPRITE_MCP_FS_ROOT` is set (`*` disables the sandbox).
 
 **Do not** start by cloning or by `npm run build` unless the user already has this repository open and wants to run that checkout (§7), or `npx` fails and a release zip is the fallback (§8).
 
@@ -166,7 +172,7 @@ or Thai:
 - Bridge connected / Live, or server running and ready
 - Optional follow-up: create a 32×32 sprite and draw a simple shape; pixels appear in Aseprite
 
-**Optional preview:** http://127.0.0.1:7777/  
+**Optional preview:** use `previewUrl` from `get_status` (it includes the local bridge token). A bare `http://127.0.0.1:7777/` without the token returns 401.  
 Badges: LIVE / HEADLESS / DISCONNECTED
 
 If status fails, go to §9 — do not declare setup finished.
@@ -204,7 +210,9 @@ Manual MCP shape for a local build:
       "command": "node",
       "args": ["<PROJECT>/dist/bin.js"],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<written by setup>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
@@ -236,10 +244,12 @@ The release workflow (tags `v*`) publishes:
 
 | System | Zip | Binary inside |
 | --- | --- | --- |
-| Windows x64 | `aseprite-mcp-windows-x64.exe.zip` | `aseprite-mcp-windows-x64.exe` |
+| Windows x64 | `aseprite-mcp-windows-x64.zip` | `aseprite-mcp-windows-x64.exe` |
+| Windows arm64 | `aseprite-mcp-windows-arm64.zip` | `aseprite-mcp-windows-arm64.exe` |
 | macOS Apple silicon | `aseprite-mcp-darwin-arm64.zip` | `aseprite-mcp-darwin-arm64` |
 | macOS Intel | `aseprite-mcp-darwin-x64.zip` | `aseprite-mcp-darwin-x64` |
 | Linux x64 | `aseprite-mcp-linux-x64.zip` | `aseprite-mcp-linux-x64` |
+| Linux arm64 | `aseprite-mcp-linux-arm64.zip` | `aseprite-mcp-linux-arm64` |
 
 1. Download the matching zip from the latest GitHub Release.
 2. Extract to a permanent folder. Keep `aseprite-plugin` and `preview` beside the binary.
@@ -255,10 +265,10 @@ The release workflow (tags `v*`) publishes:
 | `node` or `npx` not found | Reinstall Node LTS → new terminal → on Windows reboot once. If they cannot install Node, use §8. |
 | MCP server won’t start | For npm: `"command"` is `npx` and args are `["-y", "@steper158x/aseprite_mcp"]`. For a local build: `dist/bin.js` path is absolute. Reopen the AI app. |
 | Extension missing / Disconnected | Preferences → Extensions → enable bridge → restart Aseprite → File → MCP Bridge… → Connect while AI app is open |
-| Port 7777 in use / connect fails after refresh | Almost always **two** `aseprite` MCP entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan Node process. Fix: `npx -y @steper158x/aseprite_mcp setup --cursor` (clears the duplicate), kill orphans, then refresh MCP once. Do **not** keep `aseprite` in both Cursor configs. Last resort: `ASEPRITE_MCP_PORT=7778` in MCP `env`, and set the same URL port in **File → MCP Bridge...**. |
+| Port 7777 in use / connect fails after refresh | Almost always **two** `aseprite` MCP entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan Node process. Fix: `npx -y @steper158x/aseprite_mcp setup --cursor` (clears the duplicate), kill orphans, then refresh MCP once. Do **not** keep `aseprite` in both Cursor configs. Last resort: `ASEPRITE_MCP_PORT=7778` in MCP `env`, run setup again so the bridge file matches, then restart Aseprite. The extension reads the port and token from that file. |
 | `get_status` still says port in use after closing Aseprite | Closing Aseprite does **not** free 7777 (the MCP Node process owns it). Refresh the aseprite MCP server or kill the orphan process. |
 | Headless does nothing | Fix `ASEPRITE_PATH` to the **executable**, not a folder |
-| Preview blank | Start a chat that loads MCP, then reopen http://127.0.0.1:7777/ |
+| Preview blank or Unauthorized | Start a chat that loads MCP, then open `previewUrl` from `get_status` (token is in the query string). |
 | `npm install` / `npm run build` fails | You are on the source path (§7). Stay in the repo root; Node ≥ 20; let `npm install` finish so `esbuild` is installed. |
 
 Always copy the real error text into your reasoning. Propose **one** fix, verify, then continue.
@@ -288,6 +298,7 @@ After success, give **3–5 example prompts** only (from the README), not anothe
 [ ] Node ≥ 20, or a release zip chosen because Node is unavailable
 [ ] Setup command finished (npx, local dist/bin.js, or release binary)
 [ ] Plugin installed; user restarted Aseprite; Extensions shows MCP Bridge
+[ ] Setup wrote ASEPRITE_MCP_TOKEN (do not commit it) and the user restarted Aseprite so the extension loads it
 [ ] ASEPRITE_PATH set when the executable was found
 [ ] User refreshed MCP / restarted AI app
 [ ] Smoke: status check OK (and ideally a tiny draw test)

@@ -1,6 +1,6 @@
 {
   "name": "@steper158x/aseprite_mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local WebSocket bridge MCP server for live drawing in Aseprite",
   "type": "module",
   "private": false,

@@ -69,19 +69,63 @@ function util.pixelValue(sprite, hex)
   end
 end
 
-function util.findLayerByName(layers, name)
-  for _, layer in ipairs(layers) do
-    if layer.name == name then
-      return layer
+function util.layerPath(layer)
+  local parts = { layer.name }
+  local parent = layer.parent
+  while parent and parent.isGroup do
+    table.insert(parts, 1, parent.name)
+    parent = parent.parent
+  end
+  return table.concat(parts, "/")
+end
+
+function util.layerNameTaken(layers, name)
+  local function walk(list)
+    for _, layer in ipairs(list) do
+      if layer.name == name then
+        return true
+      end
+      if layer.isGroup and walk(layer.layers) then
+        return true
+      end
     end
-    if layer.isGroup then
-      local found = util.findLayerByName(layer.layers, name)
-      if found then
-        return found
+    return false
+  end
+  return walk(layers)
+end
+
+function util.findLayerByName(layers, name)
+  local matches = {}
+  local function walk(list)
+    for _, layer in ipairs(list) do
+      local path = util.layerPath(layer)
+      if path == name or layer.name == name then
+        table.insert(matches, layer)
+      end
+      if layer.isGroup then
+        walk(layer.layers)
       end
     end
   end
-  return nil
+  walk(layers)
+
+  if type(name) == "string" and name:find("/", 1, true) then
+    local exact = {}
+    for _, layer in ipairs(matches) do
+      if util.layerPath(layer) == name then
+        table.insert(exact, layer)
+      end
+    end
+    matches = exact
+  end
+
+  if #matches == 0 then
+    return nil
+  end
+  if #matches > 1 then
+    error('Ambiguous layer "' .. tostring(name) .. '". Use a path like Group/Name.')
+  end
+  return matches[1]
 end
 
 function util.resolveFrame(sprite, frameNum)
@@ -143,12 +187,55 @@ function util.canvasCopy(sprite, layer, frame)
   return img, cel
 end
 
-function util.commitCanvas(sprite, layer, frame, img, cel)
-  if cel then
-    cel.image = img
-    cel.position = Point(0, 0)
+function util.pixelVisible(sprite, pixel)
+  if sprite.colorMode == ColorMode.INDEXED then
+    return pixel ~= sprite.transparentColor
+  elseif sprite.colorMode == ColorMode.GRAY then
+    return app.pixelColor.grayaA(pixel) > 0
   else
-    sprite:newCel(layer, frame, img, Point(0, 0))
+    return app.pixelColor.rgbaA(pixel) > 0
+  end
+end
+
+-- Trim to non-transparent bounds and assign a new Image so linked cels stay independent.
+function util.commitCanvas(sprite, layer, frame, img, cel)
+  local w = img.width
+  local h = img.height
+  local minX, minY = w, h
+  local maxX, maxY = -1, -1
+  for y = 0, h - 1 do
+    for x = 0, w - 1 do
+      if util.pixelVisible(sprite, img:getPixel(x, y)) then
+        if x < minX then minX = x end
+        if y < minY then minY = y end
+        if x > maxX then maxX = x end
+        if y > maxY then maxY = y end
+      end
+    end
+  end
+
+  if maxX < 0 then
+    if cel then
+      sprite:deleteCel(cel)
+    end
+    return
+  end
+
+  local tw = maxX - minX + 1
+  local th = maxY - minY + 1
+  local trimmed = Image(tw, th, img.colorMode)
+  for y = 0, th - 1 do
+    for x = 0, tw - 1 do
+      trimmed:drawPixel(x, y, img:getPixel(minX + x, minY + y))
+    end
+  end
+
+  local fresh = Image(trimmed)
+  if cel then
+    cel.image = fresh
+    cel.position = Point(minX, minY)
+  else
+    sprite:newCel(layer, frame, fresh, Point(minX, minY))
   end
 end
 
@@ -174,11 +261,15 @@ function util.parseColorMode(name)
   error("Invalid colorMode: " .. tostring(name) .. " (expected rgb, gray, or indexed)")
 end
 
-function util.serializeLayers(layers)
+function util.serializeLayers(layers, prefix)
+  prefix = prefix or ""
   local out = {}
-  for _, layer in ipairs(layers) do
+  for i, layer in ipairs(layers) do
+    local path = prefix == "" and layer.name or (prefix .. "/" .. layer.name)
     local entry = {
       name = layer.name,
+      path = path,
+      stackIndex = layer.stackIndex or (i - 1),
       visible = layer.isVisible,
       opacity = layer.opacity,
       isGroup = layer.isGroup,
@@ -186,11 +277,61 @@ function util.serializeLayers(layers)
       isTilemap = layer.isTilemap,
     }
     if layer.isGroup then
-      entry.layers = util.serializeLayers(layer.layers)
+      entry.layers = util.serializeLayers(layer.layers, path)
     end
     table.insert(out, entry)
   end
   return out
+end
+
+function util.aniDirName(dir)
+  if AniDir and dir == AniDir.REVERSE then
+    return "reverse"
+  end
+  if AniDir and dir == AniDir.PING_PONG then
+    return "pingpong"
+  end
+  return "forward"
+end
+
+function util.parseAniDir(name)
+  if name == nil or name == "forward" then
+    return AniDir.FORWARD
+  elseif name == "reverse" then
+    return AniDir.REVERSE
+  elseif name == "pingpong" or name == "ping-pong" then
+    return AniDir.PING_PONG
+  end
+  error("Invalid aniDir: " .. tostring(name) .. " (expected forward, reverse, or pingpong)")
+end
+
+function util.serializeTags(sprite)
+  local tags = {}
+  if not sprite.tags then
+    return tags
+  end
+  for _, tag in ipairs(sprite.tags) do
+    table.insert(tags, {
+      name = tag.name,
+      fromFrame = tag.fromFrame,
+      toFrame = tag.toFrame,
+      aniDir = util.aniDirName(tag.aniDir),
+      repeats = tag.repeats,
+    })
+  end
+  return tags
+end
+
+function util.findTag(sprite, name)
+  if not sprite.tags then
+    return nil
+  end
+  for _, tag in ipairs(sprite.tags) do
+    if tag.name == name then
+      return tag
+    end
+  end
+  return nil
 end
 
 function util.normalizePath(p)

@@ -219,6 +219,76 @@ describe("HeadlessBackend", () => {
     await backend.call("ping", {});
     expect(backend.getState()).toEqual({ hasSprite: true, layer: "Layer 1", frame: 2 });
   });
+
+  test("keeps fg and bg when later results omit them", async () => {
+    const workdir = makeWorkdir();
+    const runner: HeadlessRunner = async (req) => {
+      if (req.method === "set_colors") {
+        return {
+          ok: true,
+          result: req.params,
+          state: {
+            hasSprite: true,
+            fg: typeof req.params.fg === "string" ? req.params.fg : undefined,
+            bg: typeof req.params.bg === "string" ? req.params.bg : undefined,
+          },
+        };
+      }
+      if (req.method === "close") {
+        return { ok: true, result: {}, state: { hasSprite: false } };
+      }
+      return { ok: true, result: {}, state: { hasSprite: true, frame: 1 } };
+    };
+    const backend = new HeadlessBackend({ workdir, runner });
+    await backend.call("set_colors", { fg: "#ff0000ff", bg: "#0000ffff" });
+    await backend.call("ping");
+    expect(backend.getState()).toEqual({
+      hasSprite: true,
+      frame: 1,
+      fg: "#ff0000ff",
+      bg: "#0000ffff",
+    });
+    await backend.call("close");
+    expect(backend.getState()).toEqual({
+      hasSprite: false,
+      fg: "#ff0000ff",
+      bg: "#0000ffff",
+    });
+  });
+
+  test("dispose removes undo snapshots and leaves the working document", async () => {
+    const workdir = makeWorkdir();
+    const runner: HeadlessRunner = async (req) => {
+      writeFileSync(req.doc, "sprite");
+      return { ok: true, result: {}, state: { hasSprite: true } };
+    };
+    const backend = new HeadlessBackend({ workdir, runner });
+    await backend.call("new_sprite", {}, { mutating: true });
+    expect(existsSync(join(workdir, "history"))).toBe(true);
+    expect(existsSync(join(workdir, "current.aseprite"))).toBe(true);
+    backend.dispose();
+    expect(existsSync(join(workdir, "history"))).toBe(false);
+    expect(existsSync(join(workdir, "current.aseprite"))).toBe(true);
+  });
+
+  test("run_lua stays disabled unless ASEPRITE_MCP_ALLOW_LUA=1", async () => {
+    const workdir = makeWorkdir();
+    const seen: HeadlessRunnerRequest[] = [];
+    const runner: HeadlessRunner = async (req) => {
+      seen.push(req);
+      return { ok: true, result: { result: "ok" } };
+    };
+    const backend = new HeadlessBackend({ workdir, runner });
+    const prev = process.env.ASEPRITE_MCP_ALLOW_LUA;
+    delete process.env.ASEPRITE_MCP_ALLOW_LUA;
+    try {
+      await expect(backend.call("run_lua", { code: "return 1" })).rejects.toThrow(/ASEPRITE_MCP_ALLOW_LUA/);
+      expect(seen).toHaveLength(0);
+    } finally {
+      if (prev === undefined) delete process.env.ASEPRITE_MCP_ALLOW_LUA;
+      else process.env.ASEPRITE_MCP_ALLOW_LUA = prev;
+    }
+  });
 });
 
 
@@ -253,7 +323,7 @@ describe("Router mode selection", () => {
     }
   });
 
-  test("portConflict still allows headless in auto and headless modes", async () => {
+  test("portConflict blocks auto mode and still allows headless mode", async () => {
     const workdir = mkdtempSync(join(tmpdir(), "aseprite-router-conflict-"));
     try {
       const holder = new Bridge();
@@ -270,9 +340,9 @@ describe("Router mode selection", () => {
       });
 
       const autoRouter = new Router({ mode: "auto", bridge, live, headless });
-      expect(autoRouter.resolveBackend().kind).toBe("headless");
+      expect(() => autoRouter.resolveBackend()).toThrow(/already in use/i);
       const autoStatus = await autoRouter.getStatus();
-      expect(autoStatus.activeBackend).toBe("headless");
+      expect(autoStatus.activeBackend).toBeNull();
       expect(autoStatus.portConflict).not.toBeNull();
 
       const headlessRouter = new Router({ mode: "headless", bridge, live, headless });
@@ -285,6 +355,41 @@ describe("Router mode selection", () => {
       bridge.stop();
     } finally {
       rmSync(workdir, { recursive: true, force: true });
+    }
+  });
+
+  test("auto mode does not fall back to headless after the GUI has connected", async () => {
+    const prev = process.env.ASEPRITE_MCP_RECONNECT_MS;
+    process.env.ASEPRITE_MCP_RECONNECT_MS = "150";
+    const workdir = mkdtempSync(join(tmpdir(), "aseprite-router-reconnect-"));
+    const bridge = new Bridge();
+    try {
+      await bridge.start(0, { token: null });
+      const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}/aseprite`);
+      await new Promise<void>((resolve, reject) => {
+        ws.addEventListener("open", () => resolve());
+        ws.addEventListener("error", () => reject(new Error("socket failed")));
+      });
+      ws.close();
+      await Bun.sleep(30);
+      expect(bridge.everConnected).toBe(true);
+      expect(bridge.isConnected).toBe(false);
+
+      const live = new LiveBackend(bridge, workdir);
+      const headless = new HeadlessBackend({
+        workdir,
+        runner: async () => ({ ok: true, result: {} }),
+      });
+      const router = new Router({ mode: "auto", bridge, live, headless });
+      expect(() => router.resolveBackend()).toThrow(/not connected/i);
+      const started = Date.now();
+      await expect(router.call("ping")).rejects.toThrow(/not connected/i);
+      expect(Date.now() - started).toBeGreaterThanOrEqual(100);
+    } finally {
+      bridge.stop();
+      rmSync(workdir, { recursive: true, force: true });
+      if (prev === undefined) delete process.env.ASEPRITE_MCP_RECONNECT_MS;
+      else process.env.ASEPRITE_MCP_RECONNECT_MS = prev;
     }
   });
 });

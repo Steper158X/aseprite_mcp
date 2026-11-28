@@ -15,10 +15,19 @@ Usage:
   aseprite-mcp help                 Show this help
 
 Environment:
-  ASEPRITE_PATH           Path to Aseprite for headless mode
-  ASEPRITE_MODE           auto | live | headless
-  ASEPRITE_MCP_PORT       Preview/WS port (default 7777)
-  ASEPRITE_MCP_ROOT       Override package root (plugin/assets location)
+  ASEPRITE_PATH                 Path to Aseprite for headless mode
+  ASEPRITE_MODE                 auto | live | headless (default auto)
+  ASEPRITE_MCP_PORT             Preview/WS port (default 7777, or the port in the bridge config)
+  ASEPRITE_MCP_TOKEN            Bridge token. setup generates one and the server requires it.
+  ASEPRITE_MCP_FS_ROOT          Directory open/save/export must stay inside (default: cwd).
+                                Use * or unrestricted to disable the sandbox.
+  ASEPRITE_MCP_ALLOW_LUA        Set to 1 to register run_lua. Also enable it in the Aseprite dialog.
+  ASEPRITE_MCP_CALL_TIMEOUT_MS  Live request timeout (default 15000)
+  ASEPRITE_MCP_HEADLESS_TIMEOUT_MS  Headless Aseprite timeout (default 30000)
+  ASEPRITE_MCP_RECONNECT_MS     How long auto mode waits for the GUI to return (default 4000)
+  ASEPRITE_MCP_CONFIG_DIR       Override the directory of bridge.json (token, lua key, port)
+  ASEPRITE_MCP_OPEN_PREVIEW     Set to 1 to open the preview page on startup
+  ASEPRITE_MCP_ROOT             Override package root (plugin/assets location)
 `);
 }
 

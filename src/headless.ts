@@ -1,15 +1,18 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Backend, getWorkdir, type RenderedPreview } from "./backend.ts";
+import { authorizeLuaCall } from "./bridge-config.ts";
 import { readFileBytes, readJsonFile } from "./fs-utils.ts";
 import { pluginRoot } from "./paths.ts";
 import { spawnCapture } from "./process-utils.ts";
-import { assertPathAllowed } from "./protocol.ts";
+import { assertPathAllowed, getHeadlessTimeoutMs } from "./protocol.ts";
 
 export interface HeadlessState {
   layer?: string;
   frame?: number;
   hasSprite?: boolean;
+  fg?: string;
+  bg?: string;
 }
 
 export interface HeadlessRunnerRequest {
@@ -23,6 +26,7 @@ export interface HeadlessRunnerRequest {
   renderScale?: number;
   renderMaxSize?: number;
   state: HeadlessState;
+  allowLua?: boolean;
 }
 
 export interface HeadlessRunnerResponse {
@@ -40,6 +44,27 @@ export interface HeadlessRunnerResponse {
   state?: HeadlessState;
 }
 
+/** Keep foreground/background colors when a later headless result omits them. */
+export function mergeHeadlessState(previous: HeadlessState, next: HeadlessState): HeadlessState {
+  const fg = next.fg !== undefined ? next.fg : previous.fg;
+  const bg = next.bg !== undefined ? next.bg : previous.bg;
+  if (next.hasSprite === false) {
+    const cleared: HeadlessState = { hasSprite: false };
+    if (fg !== undefined) cleared.fg = fg;
+    if (bg !== undefined) cleared.bg = bg;
+    return cleared;
+  }
+  const merged: HeadlessState = {};
+  if (next.hasSprite !== undefined) merged.hasSprite = next.hasSprite;
+  const layer = next.layer !== undefined ? next.layer : previous.layer;
+  const frame = next.frame !== undefined ? next.frame : previous.frame;
+  if (layer !== undefined) merged.layer = layer;
+  if (frame !== undefined) merged.frame = frame;
+  if (fg !== undefined) merged.fg = fg;
+  if (bg !== undefined) merged.bg = bg;
+  return merged;
+}
+
 export type HeadlessRunner = (
   req: HeadlessRunnerRequest,
   context: { asepritePath: string; headlessLua: string; libDir: string; workdir: string },
@@ -52,7 +77,6 @@ interface Snapshot {
 }
 
 const MAX_HISTORY = 50;
-const SPAWN_TIMEOUT_MS = 30000;
 
 export async function defaultHeadlessRunner(
   req: HeadlessRunnerRequest,
@@ -83,13 +107,13 @@ export async function defaultHeadlessRunner(
           "--script",
           context.headlessLua,
         ],
-        { timeoutMs: SPAWN_TIMEOUT_MS },
+        { timeoutMs: getHeadlessTimeoutMs() },
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/timed out/i.test(msg)) {
         throw new Error(
-          `Aseprite headless command "${req.method}" timed out after ${SPAWN_TIMEOUT_MS}ms`,
+          `Aseprite headless command "${req.method}" timed out after ${getHeadlessTimeoutMs()}ms`,
         );
       }
       throw err;
@@ -181,11 +205,8 @@ export class HeadlessBackend implements Backend {
     opts?: { mutating?: boolean },
   ): Promise<T> {
     return this.enqueue(async () => {
-      if (method === "run_lua" && process.env.ASEPRITE_MCP_ALLOW_LUA !== "1") {
-        throw new Error(
-          "run_lua is disabled. Set ASEPRITE_MCP_ALLOW_LUA=1 to enable custom Lua execution.",
-        );
-      }
+      const gated = authorizeLuaCall(method, params);
+      params = gated.params;
       if (method === "open_sprite" && typeof params.path === "string") {
         params = { ...params, path: assertPathAllowed(params.path) };
       }
@@ -219,6 +240,7 @@ export class HeadlessBackend implements Backend {
           save: mutating,
           render: mutating,
           previewPath,
+          allowLua: gated.allowLua,
         });
 
         if (mutating) {
@@ -268,10 +290,19 @@ export class HeadlessBackend implements Backend {
     });
   }
 
+  /** Drop undo snapshots and request temp files. Leaves the working document in place. */
+  dispose(): void {
+    this.clearStack(this.undoStack);
+    this.clearStack(this.redoStack);
+    rmSync(this.historyDir, { recursive: true, force: true });
+    rmSync(join(this.workdir, "tmp"), { recursive: true, force: true });
+  }
+
   render(opts?: {
     frame?: number;
     scale?: number;
     maxSize?: number;
+    layer?: string;
   }): Promise<RenderedPreview | null> {
     return this.enqueue(async () => {
       const hasCustomOpts =
@@ -292,6 +323,7 @@ export class HeadlessBackend implements Backend {
             ...(opts?.frame !== undefined ? { frame: opts.frame } : {}),
             ...(opts?.scale !== undefined ? { scale: opts.scale } : {}),
             ...(opts?.maxSize !== undefined ? { maxSize: opts.maxSize } : {}),
+            ...(opts?.layer !== undefined ? { layer: opts.layer } : {}),
           },
           { save: false, render: false },
         );
@@ -336,7 +368,7 @@ export class HeadlessBackend implements Backend {
   private async invoke(
     method: string,
     params: Record<string, unknown>,
-    opts: { save: boolean; render: boolean; previewPath?: string },
+    opts: { save: boolean; render: boolean; previewPath?: string; allowLua?: boolean },
   ): Promise<HeadlessRunnerResponse> {
     mkdirSync(this.workdir, { recursive: true });
     const req: HeadlessRunnerRequest = {
@@ -346,6 +378,7 @@ export class HeadlessBackend implements Backend {
       save: opts.save,
       render: opts.render,
       ...(opts.previewPath ? { previewPath: opts.previewPath } : {}),
+      ...(opts.allowLua ? { allowLua: true } : {}),
       state: { ...this.state },
     };
 
@@ -361,15 +394,7 @@ export class HeadlessBackend implements Backend {
     }
 
     if (res.state) {
-      if (res.state.hasSprite === false) {
-        this.state = { hasSprite: false };
-      } else {
-        this.state = {
-          hasSprite: res.state.hasSprite,
-          layer: res.state.layer !== undefined ? res.state.layer : this.state.layer,
-          frame: res.state.frame !== undefined ? res.state.frame : this.state.frame,
-        };
-      }
+      this.state = mergeHeadlessState(this.state, res.state);
     }
 
     return res;

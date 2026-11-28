@@ -134,7 +134,7 @@ If you installed from Steam, it may live under:
 
 ### 4. What the MCP config looks like
 
-Setup writes an entry named `"aseprite"`. This is the shape (your `ASEPRITE_PATH` will differ):
+Setup writes an entry named `"aseprite"`, including a generated bridge token. This is the shape (your `ASEPRITE_PATH` and token will differ). Copy `.cursor/mcp.json.example` if you are writing the file by hand, then run setup so the token is filled in. The real `.cursor/mcp.json` is gitignored.
 
 ```json
 {
@@ -143,7 +143,9 @@ Setup writes an entry named `"aseprite"`. This is the shape (your `ASEPRITE_PATH
       "command": "npx",
       "args": ["-y", "@steper158x/aseprite_mcp"],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<written by setup>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
@@ -202,10 +204,10 @@ Watch the Aseprite window. Pixels should appear live.
 
 ### Live web preview (optional)
 
-While the AI app has the MCP server running, open a browser to:
+While the AI app has the MCP server running, open the preview URL from `get_status` (it includes a local token). The server also prints that URL on startup. A page opened without the token is rejected.
 
-- http://127.0.0.1:7777/ — interactive preview
-- http://127.0.0.1:7777/preview.png — latest image only
+- `http://127.0.0.1:7777/?token=…` — interactive preview
+- the same URL with path `/preview.png` — latest image only
 
 Status badge meanings:
 
@@ -236,9 +238,14 @@ If `ASEPRITE_PATH` is set correctly, the server can still draw using Aseprite in
 - `Take a screenshot of the canvas and check if the proportions look good`
 - `Turn this into a 4-frame tail-wagging animation at 160ms per frame`
 - `Add a Shadow layer with 50% opacity and multiply blend mode`
-- `Save this sprite as C:/art/cat.aseprite and also export C:/art/cat.gif`
+- `Save this sprite as art/cat.aseprite and also export art/cat.gif`
+- `Add a walk tag on frames 1-4 and export a horizontal spritesheet to art/walk.png`
 
-Use folders that already exist on your machine, or ask the AI to create them if your setup allows it.
+Open, save, and export paths stay inside the folder the server was started from. To allow another folder, set `ASEPRITE_MCP_FS_ROOT` to that folder, or to `*` to turn the sandbox off.
+
+If Aseprite was connected and then closes or reloads, auto mode waits briefly and then reports that it is disconnected. It does not keep drawing into a hidden background file. Set `ASEPRITE_MODE=headless` when you want that background file on purpose.
+
+The bridge can also edit animation tags, resize or crop the canvas, flip and rotate, reorder and duplicate layers, move cels, and change the selection. Tilemaps, slices, the pixel grid, and text layers are not supported.
 
 ---
 
@@ -248,10 +255,12 @@ Each GitHub Release (tags `v*`) includes one zip per system. Node.js is not requ
 
 | System | Zip | Program inside |
 | --- | --- | --- |
-| Windows x64 | `aseprite-mcp-windows-x64.exe.zip` | `aseprite-mcp-windows-x64.exe` |
+| Windows x64 | `aseprite-mcp-windows-x64.zip` | `aseprite-mcp-windows-x64.exe` |
+| Windows arm64 | `aseprite-mcp-windows-arm64.zip` | `aseprite-mcp-windows-arm64.exe` |
 | macOS Apple silicon | `aseprite-mcp-darwin-arm64.zip` | `aseprite-mcp-darwin-arm64` |
 | macOS Intel | `aseprite-mcp-darwin-x64.zip` | `aseprite-mcp-darwin-x64` |
 | Linux x64 | `aseprite-mcp-linux-x64.zip` | `aseprite-mcp-linux-x64` |
+| Linux arm64 | `aseprite-mcp-linux-arm64.zip` | `aseprite-mcp-linux-arm64` |
 
 1. Download the zip for your system from the latest GitHub Release.
 2. Extract it somewhere permanent, for example `C:\Tools\aseprite-mcp\`.
@@ -273,7 +282,9 @@ On macOS or Linux, run the matching program name from the table with the same ar
       "command": "C:/Tools/aseprite-mcp/aseprite-mcp-windows-x64.exe",
       "args": [],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<written by setup>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
@@ -318,12 +329,16 @@ Manual MCP entry for a local build. Replace `<PROJECT>` and `<ASEPRITE>` with yo
       "command": "node",
       "args": ["<PROJECT>/dist/bin.js"],
       "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
+        "ASEPRITE_PATH": "<ASEPRITE>",
+        "ASEPRITE_MCP_TOKEN": "<written by setup>",
+        "ASEPRITE_MCP_PORT": "7777"
       }
     }
   }
 }
 ```
+
+Prefer `node dist/bin.js setup --cursor` so the token is generated for you. Setup writes it into the MCP `env` and into the Aseprite extension. Restart Aseprite after setup or after a port change so the extension picks up the new file.
 
 If the AI app cannot find `node`, set `"command"` to the full path of `node.exe` (Windows: `where.exe node`) or `node` (macOS/Linux: `which node`).
 
@@ -338,11 +353,11 @@ People who change the code also need [Bun](https://bun.sh/) for unit tests (`npm
 | `node` or `npx` is not recognized | Reinstall Node.js LTS, then open a **new** terminal. On Windows, reboot once if needed. |
 | AI says it cannot find `node` or `npx` | In MCP config, set `"command"` to the full path of `node.exe` or `npx.cmd` (Windows: `where.exe node` and `where.exe npx`). |
 | Extension missing / Disconnected | **Edit → Preferences → Extensions** → enable **Aseprite MCP Bridge** → restart Aseprite → **File → MCP Bridge... → Connect** while the AI app is open. |
-| Port 7777 already in use | Usually two `aseprite` entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan Node process. Run `npx -y @steper158x/aseprite_mcp setup --cursor` again (it clears the duplicate), kill orphans, refresh MCP once. Last resort: `"ASEPRITE_MCP_PORT": "7778"` in MCP `env`, and set the same port in **File → MCP Bridge...**. |
+| Port 7777 already in use | Usually two `aseprite` entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan Node process. Run `npx -y @steper158x/aseprite_mcp setup --cursor` again (it clears the duplicate), kill orphans, refresh MCP once. Last resort: `"ASEPRITE_MCP_PORT": "7778"` in MCP `env`, run setup again (or restart the server so it rewrites the bridge file), then restart Aseprite. The extension reads the port from that file on connect. |
 | Headless does nothing | Double-check `ASEPRITE_PATH` points to the real `Aseprite.exe` / `aseprite` binary, not a folder. |
 | Setup wrote the wrong folder | For Cursor, run setup from inside the project folder you have open. Use `--print` first to preview. |
 | `npm run build` fails | Run it from the repository root with Node.js 20+. `npm install` must finish first so the `esbuild` dev dependency is present. |
-| Preview page is blank | Start a chat that loads the MCP server, then open http://127.0.0.1:7777/ again. |
+| Preview page is blank or says Unauthorized | Start a chat that loads the MCP server, then open the `previewUrl` from `get_status` (it contains the token). |
 
 ---
 
@@ -353,10 +368,16 @@ Add these under the `"env"` block in your MCP config only if you need them:
 | Name | Default | Meaning |
 | --- | --- | --- |
 | `ASEPRITE_PATH` | (empty) | Path to Aseprite for headless drawing |
-| `ASEPRITE_MODE` | `auto` | `auto`, `live`, or `headless` |
-| `ASEPRITE_MCP_PORT` | `7777` | Preview and bridge port |
+| `ASEPRITE_MODE` | `auto` | `auto`, `live`, or `headless`. After the GUI has connected once, `auto` waits for it to return instead of switching to the headless file |
+| `ASEPRITE_MCP_PORT` | `7777` | Preview and bridge port. Setup stores it so the extension uses the same port |
+| `ASEPRITE_MCP_TOKEN` | generated | Required shared secret. `setup` creates it. The server also creates one on startup if it is missing |
+| `ASEPRITE_MCP_FS_ROOT` | server working directory | Open/save/export must stay inside this folder. `*` or `unrestricted` disables the check |
 | `ASEPRITE_MCP_OPEN_PREVIEW` | `0` | Set `1` to open the preview page when the server starts |
-| `ASEPRITE_MCP_ALLOW_LUA` | `0` | Set `1` to allow the advanced `run_lua` tool |
+| `ASEPRITE_MCP_ALLOW_LUA` | unset | Set `1` to register `run_lua`, and also enable Allow run_lua in **File → MCP Bridge...** |
+| `ASEPRITE_MCP_CALL_TIMEOUT_MS` | `15000` | How long a live request may run |
+| `ASEPRITE_MCP_HEADLESS_TIMEOUT_MS` | `30000` | How long one headless Aseprite process may run |
+| `ASEPRITE_MCP_RECONNECT_MS` | `4000` | How long auto mode waits for Aseprite to reconnect |
+| `ASEPRITE_MCP_CONFIG_DIR` | per-user config dir | Override where `bridge.json` (token, lua key, port) is stored |
 
 ---
 

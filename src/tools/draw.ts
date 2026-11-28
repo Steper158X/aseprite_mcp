@@ -1,13 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Router } from "../backend.ts";
-import {
-  MAX_RASTER_PIXELS,
-  rasterizeEllipse,
-  rasterizeLine,
-  rasterizePixelArt,
-  rasterizeRect,
-} from "../raster.ts";
+import { MAX_RASTER_PIXELS, rasterizePixelArt } from "../raster.ts";
 import { hexColorSchema, layerFrameShape, runBackendTool, toolError } from "./common.ts";
 
 const MAX_PIXELS = MAX_RASTER_PIXELS;
@@ -86,7 +80,7 @@ export function registerDrawTools(server: McpServer, router: Router): void {
     "draw_line",
     {
       description:
-        "Draw a line between two 0-based pixel coordinates with optional square brush thickness. One Ctrl+Z undo step. Use get_screenshot afterward to inspect your work.",
+        "Draw a line between two 0-based pixel coordinates with optional square brush thickness, in Aseprite (no 20000-pixel list cap). One Ctrl+Z undo step. Use get_screenshot afterward to inspect your work.",
       inputSchema: {
         x1: z.number().int().describe("Start X (0-based)"),
         y1: z.number().int().describe("Start Y (0-based)"),
@@ -103,26 +97,20 @@ export function registerDrawTools(server: McpServer, router: Router): void {
         ...layerFrameShape,
       },
     },
-    async ({ x1, y1, x2, y2, color, size, layer, frame }) => {
-      try {
-        const pixels = rasterizeLine(x1, y1, x2, y2, color, size ?? 1);
-        return await runBackendTool(
-          router,
-          "draw_pixels",
-          { pixels, layer, frame },
-          { mutating: true, toolName: "draw_line" },
-        );
-      } catch (err) {
-        return toolError(err);
-      }
-    },
+    async ({ x1, y1, x2, y2, color, size, layer, frame }) =>
+      runBackendTool(
+        router,
+        "draw_line",
+        { x1, y1, x2, y2, color, ...(size !== undefined ? { size } : {}), layer, frame },
+        { mutating: true, toolName: "draw_line" },
+      ),
   );
 
   server.registerTool(
     "draw_rect",
     {
       description:
-        "Draw an outline or filled rectangle at 0-based top-left (x, y) with pixel width and height. One Ctrl+Z undo step. Use get_screenshot afterward to inspect your work.",
+        "Draw an outline or filled rectangle at 0-based top-left (x, y) with pixel width and height, in Aseprite (no 20000-pixel list cap). One Ctrl+Z undo step. Use get_screenshot afterward to inspect your work.",
       inputSchema: {
         x: z.number().int().describe("Top-left X (0-based)"),
         y: z.number().int().describe("Top-left Y (0-based)"),
@@ -133,26 +121,29 @@ export function registerDrawTools(server: McpServer, router: Router): void {
         ...layerFrameShape,
       },
     },
-    async ({ x, y, width, height, color, filled, layer, frame }) => {
-      try {
-        const pixels = rasterizeRect(x, y, width, height, color, filled ?? false);
-        return await runBackendTool(
-          router,
-          "draw_pixels",
-          { pixels, layer, frame },
-          { mutating: true, toolName: "draw_rect" },
-        );
-      } catch (err) {
-        return toolError(err);
-      }
-    },
+    async ({ x, y, width, height, color, filled, layer, frame }) =>
+      runBackendTool(
+        router,
+        "draw_rect",
+        {
+          x,
+          y,
+          width,
+          height,
+          color,
+          ...(filled !== undefined ? { filled } : {}),
+          layer,
+          frame,
+        },
+        { mutating: true, toolName: "draw_rect" },
+      ),
   );
 
   server.registerTool(
     "draw_ellipse",
     {
       description:
-        "Draw an outline or filled ellipse fitting inside the 0-based bounding box (x, y, width, height). One Ctrl+Z undo step. Use get_screenshot afterward to inspect your work.",
+        "Draw an outline or filled ellipse fitting inside the 0-based bounding box (x, y, width, height), in Aseprite (no 20000-pixel list cap). One Ctrl+Z undo step. Use get_screenshot afterward to inspect your work.",
       inputSchema: {
         x: z.number().int().describe("Bounding box top-left X (0-based)"),
         y: z.number().int().describe("Bounding box top-left Y (0-based)"),
@@ -163,19 +154,22 @@ export function registerDrawTools(server: McpServer, router: Router): void {
         ...layerFrameShape,
       },
     },
-    async ({ x, y, width, height, color, filled, layer, frame }) => {
-      try {
-        const pixels = rasterizeEllipse(x, y, width, height, color, filled ?? false);
-        return await runBackendTool(
-          router,
-          "draw_pixels",
-          { pixels, layer, frame },
-          { mutating: true, toolName: "draw_ellipse" },
-        );
-      } catch (err) {
-        return toolError(err);
-      }
-    },
+    async ({ x, y, width, height, color, filled, layer, frame }) =>
+      runBackendTool(
+        router,
+        "draw_ellipse",
+        {
+          x,
+          y,
+          width,
+          height,
+          color,
+          ...(filled !== undefined ? { filled } : {}),
+          layer,
+          frame,
+        },
+        { mutating: true, toolName: "draw_ellipse" },
+      ),
   );
 
   server.registerTool(

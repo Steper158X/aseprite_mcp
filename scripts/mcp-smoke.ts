@@ -33,6 +33,23 @@ const EXPECTED_TOOLS = [
   "set_palette",
   "get_screenshot",
   "get_pixels",
+  "add_tag",
+  "set_tag",
+  "delete_tag",
+  "resize_sprite",
+  "crop_sprite",
+  "flip_sprite",
+  "rotate_sprite",
+  "export_spritesheet",
+  "move_layer",
+  "duplicate_layer",
+  "set_selection",
+  "get_selection",
+  "get_cel",
+  "set_cel_props",
+  "link_cels",
+  "unlink_cel",
+  "set_palette_color",
 ];
 
 function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
@@ -90,11 +107,12 @@ async function main(): Promise<void> {
     console.log("get_status:", JSON.stringify(status, null, 2));
 
     const port = Number(status.port ?? 7777);
-    const htmlRes = await fetch(`http://127.0.0.1:${port}/`);
+    const previewPage = typeof status.previewUrl === "string" ? status.previewUrl : `http://127.0.0.1:${port}/`;
+    const htmlRes = await fetch(previewPage);
     if (htmlRes.status !== 200) {
-      throw new Error(`Expected 200 from GET /, got ${htmlRes.status}`);
+      throw new Error(`Expected 200 from GET preview, got ${htmlRes.status}`);
     }
-    console.log(`GET http://127.0.0.1:${port}/ -> 200 OK`);
+    console.log(`GET ${previewPage} -> 200 OK`);
 
     if (status.activeBackend) {
       const spriteRes = await client.callTool({
@@ -115,7 +133,9 @@ async function main(): Promise<void> {
         extractText(rectRes as { content: Array<{ type: string; text?: string }> }),
       );
 
-      const previewRes = await fetch(`http://127.0.0.1:${port}/preview.png`);
+      const previewPng = new URL("/preview.png", previewPage);
+      previewPng.search = new URL(previewPage).search;
+      const previewRes = await fetch(previewPng);
       if (previewRes.status !== 200) {
         throw new Error(`Expected 200 from GET /preview.png, got ${previewRes.status}`);
       }
