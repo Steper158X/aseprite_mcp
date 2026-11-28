@@ -21,20 +21,21 @@
     "start": "bun run src/cli-main.ts",
     "start:node": "node dist/bin.js",
     "setup": "bun run src/cli-main.ts setup",
-    "build": "bun run scripts/build.ts",
+    "build": "node scripts/build.mjs",
     "build:binaries": "bun run scripts/build-binaries.ts",
-    "prepack": "bun run build",
+    "prepack": "node scripts/build.mjs",
     "test": "bun test",
     "install-plugin": "bun run src/cli-main.ts install-plugin",
     "package-plugin": "bun run src/cli-main.ts package-plugin",
     "cli": "bun run src/cli.ts",
     "smoke": "bun run scripts/mcp-smoke.ts",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/bun": "^1.4.5",
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
     "typescript": "^5.8.0"
   },
   "dependencies": {

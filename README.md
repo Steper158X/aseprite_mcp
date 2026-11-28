@@ -52,102 +52,66 @@ After setup, you open Aseprite, open your AI app, and type something like:
 | Aseprite installed | Steam or standalone is fine |
 | An AI app that supports MCP | Cursor, Claude Desktop, or Antigravity |
 | About 10–15 minutes | First-time setup only |
-| **Node.js 20 or newer** *(recommended path)* | Free download: https://nodejs.org/ (LTS) |
+| **Node.js 20 or newer** | Required for the recommended npm install. Free download: https://nodejs.org/ (LTS) |
 
-Optional later: a ready-made **release binary** from this project's GitHub Releases page (no Node.js needed). Prefer that only if someone already published a release zip for your OS.
-
----
-
-## Part 1 — Get the project files
-
-### Option A — Download ZIP (no Git needed)
-
-1. Open this repository on GitHub.
-2. Click the green **Code** button → **Download ZIP**.
-3. Extract the ZIP somewhere easy to find, for example:
-   - Windows: `C:\Users\<YourUsername>\aseprite_mcp`
-   - macOS: `/Users/<YourUsername>/aseprite_mcp`
-4. Remember this folder path. You will paste it into settings later.
-
-### Option B — Git clone
-
-```bash
-git clone <this-repo-url>
-cd aseprite_mcp
-```
-
-Replace `<this-repo-url>` with the real GitHub URL of this repository.
+You can skip Node.js if you use a [GitHub Release zip](#alternative-install--release-zip) instead.
 
 ---
 
-## Part 2 — Install Node.js (if you do not have it)
+## Recommended install — npm
 
-1. Go to https://nodejs.org/ and install the **LTS** version.
+The package `@steper158x/aseprite_mcp` is published on npm. You do not clone this repository for the usual install.
+
+### 1. Install Node.js (if you do not have it)
+
+1. Go to https://nodejs.org/ and install the **LTS** version (20 or newer).
 2. Close and reopen your terminal (PowerShell on Windows, Terminal on macOS).
 3. Check that it works:
 
 ```bash
 node --version
+npx --version
 ```
 
-You should see a version like `v20.x.x` or higher. If the command is not found, restart the computer once and try again.
+You should see a Node version like `v20.x.x` or higher. If the command is not found, restart the computer once and try again.
 
----
+### 2. Install the plugin and write MCP config
 
-## Part 3 — Install dependencies and build
-
-1. Open a terminal **inside the project folder** from Part 1.
-   - Windows tip: open the folder in File Explorer, click the address bar, type `powershell`, press Enter.
-2. Run these commands one by one:
+Open a terminal **in the project folder you have open in Cursor** (any folder is fine for Claude Desktop or Antigravity). Run one command:
 
 ```bash
-npm install
-npm run build
+# Cursor (writes .cursor/mcp.json in the current project; removes aseprite from ~/.cursor/mcp.json so only one server runs)
+npx -y @steper158x/aseprite_mcp setup --cursor
+
+# Claude Desktop
+npx -y @steper158x/aseprite_mcp setup --claude
+
+# Antigravity
+npx -y @steper158x/aseprite_mcp setup --antigravity
+
+# Only print the JSON so you can copy it yourself
+npx -y @steper158x/aseprite_mcp setup --print
 ```
 
-What this does:
-
-- `npm install` downloads the libraries the server needs (once).
-- `npm run build` creates:
-  - `dist/bin.js` — the program your AI app will run
-  - `dist/aseprite-mcp-bridge.aseprite-extension` — the Aseprite plugin package
-  - `dist/preview/` — files for the live web preview page
-
-If a command fails, copy the full error text and check [Troubleshooting](#troubleshooting) below.
-
----
-
-## Part 4 — Install the Aseprite plugin
-
-### Easy way (recommended)
-
-Still in the project folder, run:
+Setup installs the Aseprite extension and tries to find Aseprite for you. If the summary says Aseprite was not found, find the program below and run the same command again with:
 
 ```bash
-node dist/bin.js install-plugin
+npx -y @steper158x/aseprite_mcp setup --cursor --aseprite "C:/path/to/Aseprite.exe"
 ```
+
+Use `--claude` or `--antigravity` instead of `--cursor` when that is your app.
 
 Then **fully quit and reopen Aseprite**.
 
 Check: in Aseprite go to **Edit → Preferences → Extensions**. You should see **Aseprite MCP Bridge** and it should be checked.
 
-### Manual way (drag and drop)
-
-1. Open the `dist` folder inside the project.
-2. Drag `aseprite-mcp-bridge.aseprite-extension` onto the Aseprite window.
-3. If Aseprite asks for script / network permission, choose **Give full trust** (or the closest wording).
-4. Restart Aseprite once.
-5. Confirm under **Edit → Preferences → Extensions**.
-
 You can also open **File → MCP Bridge...** later to see Connect / Disconnect status.
 
----
-
-## Part 5 — Find your Aseprite path
+### 3. Find your Aseprite path (if setup did not)
 
 Your AI config needs the full path to the Aseprite program (for drawing even when the window is closed).
 
-### Windows (Steam)
+#### Windows (Steam)
 
 1. Open Steam.
 2. Right-click **Aseprite** → **Manage → Browse local files**.
@@ -158,7 +122,7 @@ Common examples:
 - `C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe`
 - `D:\SteamLibrary\steamapps\common\Aseprite\Aseprite.exe`
 
-### macOS
+#### macOS
 
 Typical path:
 
@@ -168,121 +132,55 @@ If you installed from Steam, it may live under:
 
 - `~/Library/Application Support/Steam/steamapps/common/Aseprite/Aseprite.app/Contents/MacOS/aseprite`
 
-### Tip
+### 4. What the MCP config looks like
 
-The setup command can often find Aseprite for you:
+Setup writes an entry named `"aseprite"`. This is the shape (your `ASEPRITE_PATH` will differ):
 
-```bash
-node dist/bin.js setup --print
+```json
+{
+  "mcpServers": {
+    "aseprite": {
+      "command": "npx",
+      "args": ["-y", "@steper158x/aseprite_mcp"],
+      "env": {
+        "ASEPRITE_PATH": "<ASEPRITE>"
+      }
+    }
+  }
+}
 ```
 
-Look at the printed `ASEPRITE_PATH` value. If it says “not found”, set the path yourself in Part 6.
-
----
-
-## Part 6 — Connect your AI app
-
-You will add an entry named `"aseprite"` to your AI app's MCP settings.
-
-**Replace these placeholders with your real paths:**
-
-- `<PROJECT>` → your project folder from Part 1  
-  Example: `C:/Users/Alex/aseprite_mcp`
-- `<ASEPRITE>` → your Aseprite executable from Part 5  
-  Example: `C:/Program Files (x86)/Steam/steamapps/common/Aseprite/Aseprite.exe`
+If you edit the file yourself, merge that object inside `"mcpServers"` and keep any other servers you already have.
 
 On Windows, either style works in JSON:
 
 - Forward slashes: `C:/Users/Alex/...`
 - Or escaped backslashes: `C:\\Users\\Alex\\...`
 
-### Shortcut: let setup write the file
+**Cursor**
 
-From the project folder:
-
-```bash
-# Cursor (writes project .cursor/mcp.json when in a project; removes aseprite from ~/.cursor/mcp.json so only one server runs)
-node dist/bin.js setup --cursor
-
-# Claude Desktop
-node dist/bin.js setup --claude
-
-# Antigravity
-node dist/bin.js setup --antigravity
-
-# Only print the JSON so you can copy it yourself
-node dist/bin.js setup --print
-```
-
-### Cursor (manual)
-
-Create or edit `.cursor/mcp.json` in your project (or your global Cursor MCP settings):
-
-```json
-{
-  "mcpServers": {
-    "aseprite": {
-      "command": "node",
-      "args": ["<PROJECT>/dist/bin.js"],
-      "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
-      }
-    }
-  }
-}
-```
+- In a project: `.cursor/mcp.json`
+- Otherwise: `~/.cursor/mcp.json`
 
 Then open **Cursor Settings → MCP** and refresh / reload.
 
-### Claude Desktop (manual)
-
-Config file locations:
+**Claude Desktop**
 
 - **Windows:** press `Win+R`, paste `%APPDATA%\Claude`, press Enter, open `claude_desktop_config.json`
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-Merge this inside `"mcpServers"` (keep any other servers you already have):
-
-```json
-{
-  "mcpServers": {
-    "aseprite": {
-      "command": "node",
-      "args": ["<PROJECT>/dist/bin.js"],
-      "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
-      }
-    }
-  }
-}
-```
-
 Fully quit Claude Desktop (including the tray icon) and open it again.
 
-### Antigravity (manual)
+**Antigravity**
 
 Edit `~/.gemini/config/mcp_config.json`  
 (Windows: `C:\Users\<YourUsername>\.gemini\config\mcp_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "aseprite": {
-      "command": "node",
-      "args": ["<PROJECT>/dist/bin.js"],
-      "env": {
-        "ASEPRITE_PATH": "<ASEPRITE>"
-      }
-    }
-  }
-}
-```
 
 Refresh MCP servers from the Antigravity UI (or start a new chat).
 
 ---
 
-## Part 7 — First test
+## First test
 
 1. Open **Aseprite** and leave it open.
 2. Open your AI app.
@@ -344,18 +242,27 @@ Use folders that already exist on your machine, or ask the AI to create them if 
 
 ---
 
-## Alternative install — release binary
+## Alternative install — release zip
 
-If this project publishes GitHub Releases with a zip for your OS:
+Each GitHub Release (tags `v*`) includes one zip per system. Node.js is not required.
 
-1. Download the zip for your system (Windows / macOS / Linux).
+| System | Zip | Program inside |
+| --- | --- | --- |
+| Windows x64 | `aseprite-mcp-windows-x64.exe.zip` | `aseprite-mcp-windows-x64.exe` |
+| macOS Apple silicon | `aseprite-mcp-darwin-arm64.zip` | `aseprite-mcp-darwin-arm64` |
+| macOS Intel | `aseprite-mcp-darwin-x64.zip` | `aseprite-mcp-darwin-x64` |
+| Linux x64 | `aseprite-mcp-linux-x64.zip` | `aseprite-mcp-linux-x64` |
+
+1. Download the zip for your system from the latest GitHub Release.
 2. Extract it somewhere permanent, for example `C:\Tools\aseprite-mcp\`.
-3. Keep `aseprite-plugin` and `preview` next to the `.exe` (or binary). Do not delete them.
-4. Run setup once:
+3. Keep `aseprite-plugin` and `preview` next to the executable. Do not delete them.
+4. Run setup once. On Windows:
 
 ```bash
 aseprite-mcp-windows-x64.exe setup --cursor
 ```
+
+On macOS or Linux, run the matching program name from the table with the same arguments (`setup --cursor`, `--claude`, or `--antigravity`).
 
 5. In MCP config, point `"command"` at that executable and leave `"args"` as `[]`.
 
@@ -375,22 +282,41 @@ aseprite-mcp-windows-x64.exe setup --cursor
 
 ---
 
-## Alternative install — npm (when published)
+## Alternative install — build from source
 
-When the package `@steper158x/aseprite_mcp` is available on npm, you can use:
+Use this when you cloned the repository and want to run **this** checkout instead of the published npm package.
+
+Requirements:
+
+- Node.js 20 or newer (npm comes with it)
+- This repository on disk
+
+Bun is not required to build or run the server. `npm run build` and `bun run build` both run the same Node script (`scripts/build.mjs`).
 
 ```bash
-npx -y @steper158x/aseprite_mcp setup --cursor
+git clone https://github.com/Steper158X/aseprite_mcp.git
+cd aseprite_mcp
+npm install
+npm run build
+node dist/bin.js setup --cursor
 ```
 
-And this MCP entry:
+`npm install` downloads libraries once. `npm run build` creates:
+
+- `dist/bin.js` — the program your AI app will run
+- `dist/aseprite-mcp-bridge.aseprite-extension` — the Aseprite plugin package
+- `dist/preview/` — files for the live web preview page
+
+You can drag that `.aseprite-extension` file onto the Aseprite window instead of using `install-plugin`. If Aseprite asks for script / network permission, choose **Give full trust** (or the closest wording), then restart Aseprite.
+
+Manual MCP entry for a local build. Replace `<PROJECT>` and `<ASEPRITE>` with your paths:
 
 ```json
 {
   "mcpServers": {
     "aseprite": {
-      "command": "npx",
-      "args": ["-y", "@steper158x/aseprite_mcp"],
+      "command": "node",
+      "args": ["<PROJECT>/dist/bin.js"],
       "env": {
         "ASEPRITE_PATH": "<ASEPRITE>"
       }
@@ -399,7 +325,9 @@ And this MCP entry:
 }
 ```
 
-Until then, use **Part 1–6** (Node + project folder) or a release binary.
+If the AI app cannot find `node`, set `"command"` to the full path of `node.exe` (Windows: `where.exe node`) or `node` (macOS/Linux: `which node`).
+
+People who change the code also need [Bun](https://bun.sh/) for unit tests (`npm test` / `bun test`) and for release executables (`bun run build:binaries`).
 
 ---
 
@@ -407,12 +335,13 @@ Until then, use **Part 1–6** (Node + project folder) or a release binary.
 
 | Problem | What to try |
 | --- | --- |
-| `node` is not recognized | Reinstall Node.js LTS, then open a **new** terminal. On Windows, reboot once if needed. |
-| AI says it cannot find `node` | In MCP config, set `"command"` to the full path of `node.exe` (Windows: run `where.exe node` in PowerShell). |
+| `node` or `npx` is not recognized | Reinstall Node.js LTS, then open a **new** terminal. On Windows, reboot once if needed. |
+| AI says it cannot find `node` or `npx` | In MCP config, set `"command"` to the full path of `node.exe` or `npx.cmd` (Windows: `where.exe node` and `where.exe npx`). |
 | Extension missing / Disconnected | **Edit → Preferences → Extensions** → enable **Aseprite MCP Bridge** → restart Aseprite → **File → MCP Bridge... → Connect** while the AI app is open. |
-| Port 7777 already in use | Usually two `aseprite` entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan `node …/dist/bin.js`. Run `setup --cursor` again (it clears the duplicate), kill orphans, refresh MCP once. Last resort: `"ASEPRITE_MCP_PORT": "7778"` in MCP `env`. |
+| Port 7777 already in use | Usually two `aseprite` entries (project `.cursor/mcp.json` **and** `~/.cursor/mcp.json`) or an orphan Node process. Run `npx -y @steper158x/aseprite_mcp setup --cursor` again (it clears the duplicate), kill orphans, refresh MCP once. Last resort: `"ASEPRITE_MCP_PORT": "7778"` in MCP `env`, and set the same port in **File → MCP Bridge...**. |
 | Headless does nothing | Double-check `ASEPRITE_PATH` points to the real `Aseprite.exe` / `aseprite` binary, not a folder. |
-| Setup wrote the wrong folder | Run setup from inside the project folder, or pass `--command` / `--arg` yourself. Use `--print` first to preview. |
+| Setup wrote the wrong folder | For Cursor, run setup from inside the project folder you have open. Use `--print` first to preview. |
+| `npm run build` fails | Run it from the repository root with Node.js 20+. `npm install` must finish first so the `esbuild` dev dependency is present. |
 | Preview page is blank | Start a chat that loads the MCP server, then open http://127.0.0.1:7777/ again. |
 
 ---
@@ -434,7 +363,7 @@ Add these under the `"env"` block in your MCP config only if you need them:
 ## For developers
 
 ```text
-AI Client ──(stdio MCP)──► Node/Bun server
+AI Client ──(stdio MCP)──► Node server
                              ├─ Live  → WebSocket → Aseprite extension
                              ├─ Headless → Aseprite -b --script
                              └─ Web Preview on :7777
@@ -444,11 +373,15 @@ Useful commands from the project folder:
 
 | Command | Purpose |
 | --- | --- |
-| `npm run build` | Build `dist/bin.js` + extension |
+| `npm install` | Install dependencies (Node.js 20+) |
+| `npm run build` | Build `dist/bin.js` + extension with Node |
+| `bun run build` | Same build script as `npm run build` |
+| `npm run typecheck` | Typecheck with `tsc --noEmit` |
 | `npm run start:node` | Run the MCP server with Node |
-| `npm test` | Unit tests (requires Bun) |
+| `npm test` | Unit tests (requires Bun on `PATH`) |
+| `bun run build:binaries` | Compile release executables (requires Bun) |
 | `node dist/bin.js setup --help` | Setup wizard options |
 | `node dist/bin.js install-plugin` | Install extension into Aseprite |
 | `node dist/bin.js package-plugin` | Build `.aseprite-extension` only |
 
-Bun is supported for local development (`bun install`, `bun start`, `bun test`) but **end users only need Node.js** for the steps above.
+End users install with `npx` or a release zip. Building from this repository needs Node.js 20 or newer. Bun is only required for unit tests and `build:binaries`.
